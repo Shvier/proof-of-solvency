@@ -5,7 +5,7 @@ use ark_ff::{FftField, Field};
 use super::{error::Error, utils::{build_bit_vector, compute_accumulative_vector, interpolate_poly, substitute_x}};
 
 #[cfg(test)]
-mod test;
+mod test_intermediate;
 
 mod intermediate;
 mod root;
