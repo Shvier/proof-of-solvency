@@ -4,13 +4,14 @@ use ark_ff::{FftField, Field};
 
 use super::{error::Error, utils::{build_bit_vector, compute_accumulative_vector, interpolate_poly, substitute_x}};
 
-mod intermediate;
+#[cfg(test)]
+mod test;
 
-type D = Radix2EvaluationDomain::<F>;
+mod intermediate;
+mod root;
 
 pub struct Prover {
-    polys: Vec<DensePolynomial<F>>,
-    domain: D,
+
 }
 
 impl Prover {

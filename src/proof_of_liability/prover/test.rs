@@ -1,0 +1,62 @@
+use ark_bls12_381::{Fr, FrConfig};
+use ark_poly::Polynomial;
+use ark_ff::{FftField, Field, MontBackend, Zero};
+
+use super::intermediate::Intermediate;
+
+#[cfg(test)]
+impl Intermediate<MontBackend<FrConfig, 4>, 4> {
+    pub fn default() -> Intermediate<MontBackend<FrConfig, 4>, 4> {
+        const MAX_BITS: usize = 16;
+        let liab: Vec<u64> = [20, 50, 30, 40, 10, 60, 80, 70].to_vec();
+        Intermediate::new(&liab, MAX_BITS).unwrap()
+    }
+}
+
+#[test]
+fn test_compute_w1() {
+    let inter = Intermediate::default();
+    let w1 = inter.compute_w1();
+    let omega = Fr::get_root_of_unity(inter.domain.size).unwrap();
+    for idx in 0..inter.domain.size {
+        let point = omega.pow(&[idx as u64]);
+        let eval = w1.evaluate(&point);
+        assert!(eval.is_zero());
+    }
+}
+
+#[test]
+fn test_compute_w2() {
+    let inter = Intermediate::default();
+    let w2 = inter.compute_w2();
+    let omega = Fr::get_root_of_unity(inter.domain.size).unwrap();
+    for idx in 0..inter.domain.size {
+        let point = omega.pow(&[idx as u64]);
+        let eval = w2.evaluate(&point);
+        assert!(eval.is_zero());
+    }
+}
+
+#[test]
+fn test_compute_w3() {
+    let inter = Intermediate::default();
+    let w3 = inter.compute_w3();
+    let omega = Fr::get_root_of_unity(inter.domain.size).unwrap();
+    for idx in 0..inter.domain.size {
+        let point = omega.pow(&[idx as u64]);
+        let eval = w3.evaluate(&point);
+        assert!(eval.is_zero());
+    }
+}
+
+#[test]
+fn test_compute_w4() {
+    let inter = Intermediate::default();
+    let w4 = inter.compute_w4();
+    let omega = Fr::get_root_of_unity(inter.domain.size).unwrap();
+    for idx in 0..inter.domain.size {
+        let point = omega.pow(&[idx as u64]);
+        let eval = w4.evaluate(&point);
+        assert!(eval.is_zero());
+    }
+}
