@@ -3,6 +3,7 @@ use ark_ff::{FftField, Field, Fp, FpConfig};
 
 use crate::proof_of_liability::{error::Error, utils::{build_bit_vector, compute_accumulative_vector, interpolate_poly, substitute_x}};
 
+#[derive(Clone)]
 pub struct Intermediate<P: FpConfig<N>, const N: usize> {
     pub polys: Vec<DensePolynomial<Fp<P, N>>>,
     pub domain: Radix2EvaluationDomain<Fp<P, N>>,
@@ -60,7 +61,7 @@ impl<P: FpConfig<N>, const N: usize> Intermediate<P, N> {
 
     pub(super) fn compute_w3(&self) -> DensePolynomial<Fp<P, N>> {
         let len = self.polys.len();
-        let mut w3 = DensePolynomial::<Fp<P, N>>::from_coefficients_vec([].to_vec());
+        let mut w3 = DensePolynomial::<Fp<P, N>>::from_coefficients_vec(vec![]);
         for idx in 1..len - 1 {
             let cur = &self.polys[idx];
             let next = &self.polys[idx + 1];

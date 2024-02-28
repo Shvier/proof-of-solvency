@@ -6,6 +6,8 @@ use super::{error::Error, utils::{build_bit_vector, compute_accumulative_vector,
 
 #[cfg(test)]
 mod test_intermediate;
+#[cfg(test)]
+mod test_root;
 
 mod intermediate;
 mod root;
