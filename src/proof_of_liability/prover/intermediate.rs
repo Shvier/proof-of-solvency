@@ -19,6 +19,7 @@ impl<P: FpConfig<N>, const N: usize> Intermediate<P, N> {
 
         let domain_size = liabilities.len();
         let domain = Radix2EvaluationDomain::<Fp<P, N>>::new(domain_size).expect("Unsupported domain length");
+
         let mut polys = Vec::<DensePolynomial<Fp<P, N>>>::new();
         let p0 = interpolate_poly(&accumulator, domain);
         polys.push(p0);
@@ -61,26 +62,22 @@ impl<P: FpConfig<N>, const N: usize> Intermediate<P, N> {
 
     pub(super) fn compute_w3(&self) -> DensePolynomial<Fp<P, N>> {
         let len = self.polys.len();
-        let mut w3 = DensePolynomial::<Fp<P, N>>::from_coefficients_vec(vec![]);
-        for idx in 1..len - 1 {
-            let cur = &self.polys[idx];
-            let next = &self.polys[idx + 1];
-            let next_double = next + next;
-            let zero_term = cur - &next_double;
-            let constant_term = DensePolynomial::<Fp<P, N>>::from_coefficients_vec([Fp::<P, N>::from(1)].to_vec());
-            let one_term = &constant_term - &zero_term;
-            let tmp = &zero_term * &one_term;
-            w3 = &w3 + &tmp;
-        }
+        let pm = &self.polys[len - 1];
+        let constant_term = DensePolynomial::<Fp<P, N>>::from_coefficients_vec([Fp::<P, N>::from(1)].to_vec());
+        let mut w3 = pm - &constant_term;
+        w3 = &w3 * pm;
         w3
     }
 
-    pub(super) fn compute_w4(&self) -> DensePolynomial<Fp<P, N>> {
-        let len = self.polys.len();
-        let pm = &self.polys[len - 1];
+    pub(super) fn compute_v(&self, idx: usize) -> DensePolynomial<Fp<P, N>> {
+        assert!(idx > 0 && idx < self.polys.len() - 1);
+        let cur = &self.polys[idx];
+        let next = &self.polys[idx + 1];
+        let next_double = next + next;
+        let zero_term = cur - &next_double;
         let constant_term = DensePolynomial::<Fp<P, N>>::from_coefficients_vec([Fp::<P, N>::from(1)].to_vec());
-        let mut w4 = pm - &constant_term;
-        w4 = &w4 * pm;
-        w4
+        let one_term = &constant_term - &zero_term;
+        let v = &zero_term * &one_term;
+        v
     }
 }

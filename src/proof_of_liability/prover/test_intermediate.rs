@@ -57,13 +57,15 @@ fn test_compute_w3() {
 }
 
 #[test]
-fn test_compute_w4() {
+fn test_compute_v() {
     let inter = Intermediate::random();
-    let w4 = inter.compute_w4();
-    let omega = Fr::get_root_of_unity(inter.domain.size).unwrap();
-    for idx in 0..inter.domain.size {
-        let point = omega.pow(&[idx as u64]);
-        let eval = w4.evaluate(&point);
-        assert!(eval.is_zero());
+    for idx in 1..inter.polys.len() - 1 {
+        let v = inter.compute_v(idx);
+        let omega = Fr::get_root_of_unity(inter.domain.size).unwrap();
+        for idx in 0..inter.domain.size {
+            let point = omega.pow(&[idx as u64]);
+            let eval = v.evaluate(&point);
+            assert!(eval.is_zero());
+        }
     }
 }
