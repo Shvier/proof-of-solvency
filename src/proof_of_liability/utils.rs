@@ -1,13 +1,19 @@
-use ark_ff::{FftField, PrimeField};
-use ark_poly::{univariate::DensePolynomial, EvaluationDomain, Evaluations, Polynomial};
+use ark_ec::pairing::Pairing;
+use ark_ff::{FftField, Field, Fp, FpConfig, PrimeField, Zero};
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial};
+use ark_poly_commit::{marlin_pc, LabeledCommitment, PolynomialCommitment};
 use ark_std::{rand::Rng, test_rng};
 use ark_relations::r1cs::{
     ConstraintSystem,
     ConstraintSynthesizer,
     Result,
 };
+use ark_std::{convert::TryInto, ops::AddAssign, ops::Mul};
+
+use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 
 use super::constraints::PolyTransConstraints;
+use super::error::Error;
 
 pub fn build_up_bits(value: u64, max_bits: usize) -> Vec<u64> {
     assert!(value <= 2_u64.pow(u32::try_from(max_bits).unwrap()));
@@ -124,6 +130,46 @@ F: PrimeField,
     };
     let cs = ConstraintSystem::<F>::new_ref();
     circuit.generate_constraints(cs)
+}
+
+pub fn linear_combine_polys<
+E: Pairing,
+>(
+    polys: &Vec<DensePolynomial<E::ScalarField>>,
+    gamma: E::ScalarField,
+) -> DensePolynomial<E::ScalarField> {
+    let mut w = DensePolynomial::<E::ScalarField>::zero();
+    for idx in 0..polys.len() {
+        let p = &polys[idx];
+        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec([E::ScalarField::from(gamma.pow(&[idx as u64]))].to_vec());
+        let tmp = &constant_term * p;
+        w += &tmp;
+    }
+    w
+}
+
+pub fn combine_commitments_and_values<
+'a,
+E: Pairing,
+>(
+    commitments: impl IntoIterator<Item = &'a LabeledCommitment<marlin_pc::Commitment<E>>>,
+    values: impl IntoIterator<Item = E::ScalarField>,
+    challenge: E::ScalarField,
+) -> (E::G1, E::ScalarField) {
+    let mut combined_comm = E::G1::zero();
+    let mut combined_value = E::ScalarField::zero();
+    for (labeled_commitment, value) in commitments.into_iter().zip(values) {
+        let commitment = labeled_commitment.commitment();
+        combined_comm += &commitment.comm.0.mul(challenge);
+        combined_value += &(value * &challenge);
+    }
+    (combined_comm, combined_value)
+}
+
+pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 #[cfg(test)]
