@@ -1,5 +1,6 @@
-use ark_ec::{AffineRepr, CurveGroup};
-use ark_test_curves::{bls12_381, secp256k1};
+use ark_bls12_381::{Bls12_381, Fr};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_test_curves::secp256k1;
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use ark_ff::{One, PrimeField, Zero};
 
@@ -36,17 +37,22 @@ fn test_sigma_fixed_proof() {
     let public_key = secp256k1::G1Affine::generator().mul_bigint(private_key.to_u64_digits());
     println!("public key: {}", public_key);
 
-    let sigma = SigmaProtocol::setup();
+    let secp_g = secp256k1::G1Affine::generator();
+    let h_power: BigUint = BigUint::from(32u32);
+    let bls_g = <Bls12_381 as Pairing>::G1Affine::generator();
+    let bls_h = bls_g.mul_bigint(h_power.to_u64_digits()).into_affine();
+
+    let sigma = SigmaProtocol::setup(secp_g, bls_g, bls_h);
 
     let rng = &mut test_rng();
 
-    let r: BigUint = bls12_381::Fr::rand(rng).into_bigint().into();
-    let p = pedersen_commit::<bls12_381::G1Affine>(sigma.gb, sigma.hb, BigUint::zero().to_u64_digits(), &r.to_u64_digits());
+    let r: BigUint = Fr::rand(rng).into_bigint().into();
+    let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::zero().to_u64_digits(), &r.to_u64_digits());
 
     let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), false, BigUint::zero());
     sigma.validate(proof, public_key.into_affine(), p.into_affine());
 
-    let p = pedersen_commit::<bls12_381::G1Affine>(sigma.gb, sigma.hb, BigUint::one().to_u64_digits(), &r.to_u64_digits());
+    let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::one().to_u64_digits(), &r.to_u64_digits());
 
     let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), true, private_key);
     sigma.validate(proof, public_key.into_affine(), p.into_affine());
@@ -54,7 +60,12 @@ fn test_sigma_fixed_proof() {
 
 #[test]
 fn test_sigma_random_proof() {
-    let sigma = SigmaProtocol::setup();
+    let secp_g = secp256k1::G1Affine::generator();
+    let h_power: BigUint = BigUint::from(32u32);
+    let bls_g = <Bls12_381 as Pairing>::G1Affine::generator();
+    let bls_h = bls_g.mul_bigint(h_power.to_u64_digits()).into_affine();
+
+    let sigma = SigmaProtocol::setup(secp_g, bls_g, bls_h);
 
     let rng = &mut test_rng();
 
@@ -62,8 +73,8 @@ fn test_sigma_random_proof() {
         let private_key: BigUint = rng.sample(RandomBits::new(256u64));
         let public_key = sigma.gs.mul_bigint(private_key.to_u64_digits());
 
-        let r: BigUint = bls12_381::Fr::rand(rng).into_bigint().into();
-        let p = pedersen_commit::<bls12_381::G1Affine>(sigma.gb, sigma.hb, BigUint::zero().to_u64_digits(), &r.to_u64_digits());
+        let r: BigUint = Fr::rand(rng).into_bigint().into();
+        let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::zero().to_u64_digits(), &r.to_u64_digits());
 
         println!("Job {} - Generate fake proof", i);
         let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), false, BigUint::zero());
@@ -71,7 +82,7 @@ fn test_sigma_random_proof() {
         sigma.validate(proof, public_key.into_affine(), p.into_affine());
         println!("        - Fake proof validated");
 
-        let p = pedersen_commit::<bls12_381::G1Affine>(sigma.gb, sigma.hb, BigUint::one().to_u64_digits(), &r.to_u64_digits());
+        let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::one().to_u64_digits(), &r.to_u64_digits());
 
         println!("        - Generate real proof");
         let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), true, private_key);
