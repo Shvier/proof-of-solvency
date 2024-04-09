@@ -14,16 +14,8 @@ fn test_prover() {
     })
     .collect();
     let prover = Prover::setup(&selector);
-    let omega = BlsScalarField::get_root_of_unity(prover.domain_size.try_into().unwrap()).unwrap();
-    let pp = &prover.pp;
-    let vk = VerifierKey {
-        g: pp.powers_of_g[0],
-        gamma_g: pp.powers_of_gamma_g[&0],
-        h: pp.h,
-        beta_h: pp.beta_h,
-        prepared_h: pp.prepared_h.clone(),
-        prepared_beta_h: pp.prepared_beta_h.clone(),
-    };
+    let omega = prover.omega;
+    let vk = &prover.vk;
     for i in 0..selector.len() {
         let s = selector[i];
         let (cm, randomness) = prover.commit();

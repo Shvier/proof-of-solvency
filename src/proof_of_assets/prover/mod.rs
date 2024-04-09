@@ -1,8 +1,8 @@
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_ec::{pairing::Pairing, CurveGroup, VariableBaseMSM};
-use ark_ff::PrimeField;
+use ark_ff::{PrimeField, FftField};
 use ark_poly::{univariate::DensePolynomial, EvaluationDomain, Evaluations, Radix2EvaluationDomain, Polynomial, DenseUVPolynomial};
-use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, KZG10};
+use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10};
 use ark_std::test_rng;
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
@@ -20,6 +20,8 @@ pub struct Prover {
     pp: UniversalParams<Bls12_381>,
     degree: usize,
     domain_size: usize,
+    pub omega: BlsScalarField,
+    vk: VerifierKey<Bls12_381>,
     poly: DensePolynomial<<Bls12_381 as Pairing>::ScalarField>,
 }
 
@@ -27,16 +29,27 @@ impl Prover {
     pub fn setup(selector: &Vec<u8>) -> Self {
         let degree = selector.len();
         let domain_size = degree.checked_next_power_of_two().expect("Unsupported domain size");
+        let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(domain_size).unwrap();
         let evals = selector.into_iter().map(| s | Fr::from(*s)).collect();
         let evaluations = Evaluations::from_vec_and_domain(evals, domain);
         let poly = evaluations.interpolate();
         let rng = &mut test_rng();
         let pp = KZG10::<Bls12_381, UniPoly_381>::setup(domain_size, false, rng).unwrap();
+        let vk = VerifierKey {
+            g: pp.powers_of_g[0],
+            gamma_g: pp.powers_of_gamma_g[&0],
+            h: pp.h,
+            beta_h: pp.beta_h,
+            prepared_h: pp.prepared_h.clone(),
+            prepared_beta_h: pp.prepared_beta_h.clone(),
+        };
         Self {
             pp,
             degree,
             domain_size,
+            omega,
+            vk,
             poly,
         }
     }
