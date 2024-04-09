@@ -1,7 +1,7 @@
 use std::fmt;
 
-use ark_bls12_381::{Bls12_381, Fr, G1Projective};
-use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr, CurveGroup};
+use ark_bls12_381::{Bls12_381, Fr};
+use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr};
 use ark_test_curves::secp256k1;
 use ark_std::{test_rng, UniformRand};
 use ark_ff::PrimeField;
@@ -32,9 +32,9 @@ impl fmt::Display for SigmaProtocolProof {
 }
 
 pub struct SigmaProtocol {
-    gs: secp256k1::G1Affine,
-    gb: <Bls12_381 as Pairing>::G1Affine,
-    hb: <Bls12_381 as Pairing>::G1Affine,
+    pub gs: secp256k1::G1Affine,
+    pub gb: <Bls12_381 as Pairing>::G1Affine,
+    pub hb: <Bls12_381 as Pairing>::G1Affine,
 }
 
 impl SigmaProtocol {

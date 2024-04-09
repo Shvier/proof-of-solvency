@@ -1,11 +1,11 @@
-use ark_ec::AffineRepr;
-use ark_test_curves::{bls12_381, secp256k1};
+use ark_ec::{short_weierstrass::Projective, AffineRepr};
+use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 use sha2::{Digest, Sha256};
 
 pub enum HashBox {
     Secp(secp256k1::G1Projective),
-    Bls(bls12_381::G1Projective),
+    Bls(Projective<ark_bls12_381::g1::Config>),
 }
 
 pub fn calculate_hash(objects: &Vec<HashBox>) -> BigUint {

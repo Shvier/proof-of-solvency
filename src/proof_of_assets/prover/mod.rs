@@ -1,9 +1,15 @@
 use ark_bls12_381::{Bls12_381, Fr};
-use ark_ec::{pairing::Pairing, CurveGroup, VariableBaseMSM};
-use ark_ff::{PrimeField, FftField};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};
+use ark_ff::{PrimeField, FftField, Field};
 use ark_poly::{univariate::DensePolynomial, EvaluationDomain, Evaluations, Radix2EvaluationDomain, Polynomial, DenseUVPolynomial};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10};
 use ark_std::test_rng;
+use ark_test_curves::secp256k1;
+use num_bigint::BigUint;
+
+use std::ops::Mul;
+
+use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 type UniPoly_381 = DensePolynomial<BlsScalarField>;
@@ -12,21 +18,24 @@ type UniPoly_381 = DensePolynomial<BlsScalarField>;
 mod test_prover;
 
 pub struct PolyCommitProof {
-    witness: <Bls12_381 as Pairing>::G1Affine,
-    rand: BlsScalarField,
+    pub witness: <Bls12_381 as Pairing>::G1Affine,
+    pub rand: BlsScalarField,
+    pub committed_eval: <Bls12_381 as Pairing>::G1Affine,
 }
 
 pub struct Prover {
-    pp: UniversalParams<Bls12_381>,
-    degree: usize,
-    domain_size: usize,
+    pub sigma: SigmaProtocol,
     pub omega: BlsScalarField,
-    vk: VerifierKey<Bls12_381>,
+    pub vk: VerifierKey<Bls12_381>,
+    pub pp: UniversalParams<Bls12_381>,
+    pub degree: usize,
+    pub domain_size: usize,
     poly: DensePolynomial<<Bls12_381 as Pairing>::ScalarField>,
+    selector: Vec<bool>,
 }
 
 impl Prover {
-    pub fn setup(selector: &Vec<u8>) -> Self {
+    pub fn setup(selector: &Vec<bool>) -> Self {
         let degree = selector.len();
         let domain_size = degree.checked_next_power_of_two().expect("Unsupported domain size");
         let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
@@ -44,13 +53,16 @@ impl Prover {
             prepared_h: pp.prepared_h.clone(),
             prepared_beta_h: pp.prepared_beta_h.clone(),
         };
+        let sigma = SigmaProtocol::setup(secp256k1::G1Affine::generator(), vk.g, vk.gamma_g);
         Self {
+            sigma,
+            omega,
+            vk,
             pp,
             degree,
             domain_size,
-            omega,
-            vk,
             poly,
+            selector: selector.to_vec(),
         }
     }
 
@@ -97,10 +109,31 @@ impl Prover {
             &random_witness_coeffs,
         );
 
+        let eval = self.poly.evaluate(&point);
+        let committed_eval = self.sigma.gb.mul(eval) + self.sigma.hb.mul(blinding_evaluation);
+
         PolyCommitProof {
             witness: w.into_affine(),
             rand: blinding_evaluation,
+            committed_eval: committed_eval.into_affine(),
         }
+    }
+
+    pub fn generate_proof(&self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)> {
+        let (cm, randomness) = self.commit();
+        let omega = &self.omega;
+        let selector = &self.selector;
+        let mut proofs = Vec::<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)>::new();
+        for i in 0..selector.len() {
+            let s = selector[i];
+            let pk = pks[i];
+            let sk = &sks[i];
+            let point = omega.pow(&[i as u64]);
+            let pc_proof = self.open(point, &randomness);
+            let sigma_proof = self.sigma.generate_proof(pk, pc_proof.rand.into_bigint().into(), s, sk.clone());
+            proofs.push((cm, pc_proof, sigma_proof))
+        }
+        proofs
     }
 }
 
