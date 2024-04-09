@@ -1,12 +1,11 @@
-use ark_ff::{Field, PrimeField};
-
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
-use self::{prover::Prover, sigma::SigmaProtocol};
+use self::{prover::Prover};
 
 pub mod prover;
 pub mod sigma;
+pub mod verifier;
 
 #[cfg(test)]
 mod test_poa;

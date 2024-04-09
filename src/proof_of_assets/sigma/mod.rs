@@ -115,7 +115,9 @@ impl SigmaProtocol {
     }
 
     pub fn validate(
-        &self, 
+        gs: secp256k1::G1Affine,
+        gb: <Bls12_381 as Pairing>::G1Affine,
+        hb: <Bls12_381 as Pairing>::G1Affine,
         proof: SigmaProtocolProof,
         y: secp256k1::G1Affine,
         p: <Bls12_381 as Pairing>::G1Affine,
@@ -124,13 +126,13 @@ impl SigmaProtocol {
         assert_eq!(e, calculate_hash(&vec![HashBox::Secp(t1), HashBox::Bls(t2), HashBox::Bls(t3)]));
         let e1_xor_e2 = &e1 ^ &e2;
         assert_eq!(e, e1_xor_e2);
-        let lhs = self.gs.mul_bigint(z1.to_u64_digits());
+        let lhs = gs.mul_bigint(z1.to_u64_digits());
         let rhs = y.mul_bigint(e1.to_u64_digits()) + t1;
         assert_eq!(lhs, rhs);
-        let lhs = self.gb.mul_bigint(e1.to_u64_digits()) + self.hb.mul_bigint(z2.to_u64_digits());
+        let lhs = gb.mul_bigint(e1.to_u64_digits()) + hb.mul_bigint(z2.to_u64_digits());
         let rhs = p.mul_bigint(e1.to_u64_digits()) + t2;
         assert_eq!(lhs, rhs);
-        let lhs = self.hb.mul_bigint(z3.to_u64_digits());
+        let lhs = hb.mul_bigint(z3.to_u64_digits());
         let rhs = p.mul_bigint(e2.to_u64_digits()) + t3;
         assert_eq!(lhs, rhs);
     }

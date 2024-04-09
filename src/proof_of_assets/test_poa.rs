@@ -1,13 +1,12 @@
-use ark_bls12_381::Bls12_381;
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_std::{rand::Rng, test_rng};
 use ark_ff::Field;
 use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
 
-use std::ops::Mul;
+use crate::proof_of_assets::verifier::Verifier;
 
-use super::PoA;
+use super::{sigma, PoA};
 
 #[test]
 fn test_poa() {
@@ -35,16 +34,9 @@ fn test_poa() {
     let vk = &poa.prover.vk;
     let omega = &poa.prover.omega;
     let mut i = 0;
-    for (cm, pc_proof, sigma_proof) in proofs {        
-        poa.prover.sigma.validate(sigma_proof, pks[i], pc_proof.committed_eval);
-
+    for (cm, pc_proof, sigma_proof) in proofs {
         let point = omega.pow(&[i as u64]);
-        let inner = cm.0.into_group() - &pc_proof.committed_eval;
-        let lhs = Bls12_381::pairing(inner, vk.h);
-        let inner = vk.beta_h.into_group() - &vk.h.mul(point);
-        let rhs = Bls12_381::pairing(pc_proof.witness, inner);
-        assert_eq!(lhs, rhs);
-
+        Verifier::check(vk, cm, pc_proof, sigma_proof, pks[i], point);
         i += 1;
     }
 }
