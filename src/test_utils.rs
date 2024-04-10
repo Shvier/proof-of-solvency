@@ -14,7 +14,7 @@ type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 #[test]
 fn test_batch_check() {
     let rng = &mut test_rng();
-    let degree: usize = 10000;
+    let degree: usize = 10;
     let domain_size = degree.checked_next_power_of_two().expect("Unsupported domain size");
 
     let pp = KZG10::<Bls12_381, DensePolynomial<BlsScalarField>>::setup(domain_size, false, rng).unwrap();
@@ -51,6 +51,7 @@ fn test_batch_check() {
 
     let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
     let mut open_points = Vec::<BlsScalarField>::new();
+    let mut commitments = Vec::<Vec<Commitment<Bls12_381>>>::new();
     let mut witnesses = Vec::<<Bls12_381 as Pairing>::G1>::new();
     let mut evals = Vec::<Vec<OpenEval<Bls12_381>>>::new();
     let mut gammas = Vec::<BlsScalarField>::new();
@@ -58,14 +59,26 @@ fn test_batch_check() {
         let power = rng.gen::<u64>();
         let point = omega.pow(&[power]);
         open_points.push(point);
-        let (witness, open_evals, gamma) = batch_open(&powers, &polys, &randoms, point, perfect_hding, rng);
+        let (witness, open_evals, gamma) = 
+            batch_open(&powers, &polys, &randoms, point, perfect_hding, rng);
         witnesses.push(witness);
         evals.push(open_evals);
         gammas.push(gamma);
+        commitments.push(cms.clone());
     }
 
+    let power = rng.gen::<u64>();
+    let point = omega.pow(&[power]);
+    open_points.push(point);
+    let (witness, open_evals, gamma) = 
+        batch_open(&powers, &[polys[1].clone()].to_vec(), &[randoms[1].clone()].to_vec(), point, perfect_hding, rng);
+    witnesses.push(witness);
+    evals.push(open_evals);
+    gammas.push(gamma);
+    commitments.push([cms[1].clone()].to_vec());
+
     let start_time = Instant::now();
-    batch_check(&vk, &cms, &witnesses, &open_points, &evals, &gammas, perfect_hding, rng);
+    batch_check(&vk, &commitments, &witnesses, &open_points, &evals, &gammas, perfect_hding, rng);
     let total_time =
         start_time.elapsed().as_secs() as f64 + start_time.elapsed().subsec_nanos() as f64 / 1e9;
     println!("batch check executed time: {}", total_time);

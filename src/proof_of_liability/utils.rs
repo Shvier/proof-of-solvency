@@ -1,19 +1,18 @@
 use ark_ec::pairing::Pairing;
-use ark_ff::{FftField, Field, Fp, FpConfig, PrimeField, Zero};
+use ark_ff::{FftField, Field, PrimeField, Zero};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial};
-use ark_poly_commit::{marlin_pc, LabeledCommitment, PolynomialCommitment};
+use ark_poly_commit::{marlin_pc, LabeledCommitment};
 use ark_std::{rand::Rng, test_rng};
 use ark_relations::r1cs::{
     ConstraintSystem,
     ConstraintSynthesizer,
     Result,
 };
-use ark_std::{convert::TryInto, ops::AddAssign, ops::Mul};
+use ark_std::ops::Mul;
 
 use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 
 use super::constraints::PolyTransConstraints;
-use super::error::Error;
 
 pub fn build_up_bits(value: u64, max_bits: usize) -> Vec<u64> {
     assert!(value <= 2_u64.pow(u32::try_from(max_bits).unwrap()));

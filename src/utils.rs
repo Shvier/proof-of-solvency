@@ -98,7 +98,7 @@ pub fn batch_open<E: Pairing, R: RngCore>(
 // the batched KZG opening scheme in [GWC19]
 pub fn batch_check<E: Pairing, R: RngCore>(
     vk: &VerifierKey<E>,
-    cms: &Vec<Commitment<E>>,
+    commitments: &Vec<Vec<Commitment<E>>>,
     witnesses: &Vec<E::G1>,
     points: &Vec<E::ScalarField>,
     open_evals: &Vec<Vec<OpenEval<E>>>,
@@ -107,12 +107,14 @@ pub fn batch_check<E: Pairing, R: RngCore>(
     rng: &mut R,
 ) {
     assert!(&points.len() == &open_evals.len() && &points.len() == &witnesses.len() && &gammas.len() == &points.len());
-    assert_eq!(&cms.len(), &open_evals[0].len());
     let mut left = E::G1::zero();
     let mut right = E::G1::zero();
     let mut i: usize = 0;
     let r = E::ScalarField::rand(rng);
-    for (evals, gamma) in open_evals.into_iter().zip(gammas) {
+    for gamma in gammas {
+        let cms = &commitments[i];
+        let evals = &open_evals[i];
+        assert_eq!(&cms.len(), &evals.len());
         let mut j = 0u64;
         let mut sum_cm = E::G1::zero();
         let mut sum_committed_eval = E::G1::zero();
