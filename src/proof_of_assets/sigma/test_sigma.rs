@@ -50,12 +50,12 @@ fn test_sigma_fixed_proof() {
     let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::zero().to_u64_digits(), &r.to_u64_digits());
 
     let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), false, BigUint::zero());
-    SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, proof, public_key.into_affine(), p.into_affine());
+    SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, &proof, public_key.into_affine(), p.into_affine());
 
     let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::one().to_u64_digits(), &r.to_u64_digits());
 
     let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), true, private_key);
-    SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, proof, public_key.into_affine(), p.into_affine());
+    SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, &proof, public_key.into_affine(), p.into_affine());
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn test_sigma_random_proof() {
         println!("Job {} - Generate fake proof", i);
         let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), false, BigUint::zero());
         println!("        - Fake proof generated");
-        SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, proof, public_key.into_affine(), p.into_affine());
+        SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, &proof, public_key.into_affine(), p.into_affine());
         println!("        - Fake proof validated");
 
         let p = pedersen_commit::<<Bls12_381 as Pairing>::G1Affine>(sigma.gb, sigma.hb, BigUint::one().to_u64_digits(), &r.to_u64_digits());
@@ -87,7 +87,7 @@ fn test_sigma_random_proof() {
         println!("        - Generate real proof");
         let proof = sigma.generate_proof(public_key.into_affine(), r.clone(), true, private_key);
         println!("        - Real proof generated");
-        SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, proof, public_key.into_affine(), p.into_affine());
+        SigmaProtocol::validate(sigma.gs, sigma.gb, sigma.hb, &proof, public_key.into_affine(), p.into_affine());
         println!("        - Real proof validated");
     }
 }

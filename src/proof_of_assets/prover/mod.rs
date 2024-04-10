@@ -9,7 +9,7 @@ use num_bigint::BigUint;
 
 use std::ops::Mul;
 
-use crate::utils::{convert_to_bigints, skip_leading_zeros_and_convert_to_bigints};
+use crate::utils::{batch_open, convert_to_bigints, skip_leading_zeros_and_convert_to_bigints};
 
 use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 

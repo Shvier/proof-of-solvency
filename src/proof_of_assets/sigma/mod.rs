@@ -118,14 +118,14 @@ impl SigmaProtocol {
         gs: secp256k1::G1Affine,
         gb: <Bls12_381 as Pairing>::G1Affine,
         hb: <Bls12_381 as Pairing>::G1Affine,
-        proof: SigmaProtocolProof,
+        proof: &SigmaProtocolProof,
         y: secp256k1::G1Affine,
         p: <Bls12_381 as Pairing>::G1Affine,
     ) {
         let SigmaProtocolProof { t1, t2, t3, e1, e2, e, z1, z2, z3 } = proof;
-        assert_eq!(e, calculate_hash(&vec![HashBox::Secp(t1), HashBox::Bls(t2), HashBox::Bls(t3)]));
-        let e1_xor_e2 = &e1 ^ &e2;
-        assert_eq!(e, e1_xor_e2);
+        assert_eq!(*e, calculate_hash(&vec![HashBox::Secp(*t1), HashBox::Bls(*t2), HashBox::Bls(*t3)]));
+        let e1_xor_e2 = e1 ^ e2;
+        assert_eq!(*e, e1_xor_e2);
         let lhs = gs.mul_bigint(z1.to_u64_digits());
         let rhs = y.mul_bigint(e1.to_u64_digits()) + t1;
         assert_eq!(lhs, rhs);

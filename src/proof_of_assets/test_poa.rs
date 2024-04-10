@@ -1,12 +1,11 @@
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_std::{rand::Rng, test_rng};
-use ark_ff::Field;
 use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
 
 use crate::proof_of_assets::verifier::Verifier;
 
-use super::{sigma, PoA};
+use super::PoA;
 
 #[test]
 fn test_poa() {
@@ -33,12 +32,17 @@ fn test_poa() {
     let proofs = poa.prover.generate_proof(&pks, &sks);
     let vk = &poa.prover.vk;
     let omega = &poa.prover.omega;
-    let mut i = 0;
-    for (cm, pc_proof, sigma_proof) in proofs {
-        let point = omega.pow(&[i as u64]);
-        Verifier::check(vk, cm, pc_proof, sigma_proof, pks[i], point);
-        i += 1;
-    }
+
+    Verifier::batch_check(vk, &proofs, pks, *omega);
+
+    // single check
+    // use ark_ff::Field;
+    // let mut i = 0;
+    // for (cm, pc_proof, sigma_proof) in proofs {
+    //     let point = omega.pow(&[i as u64]);
+    //     Verifier::check(vk, cm, pc_proof, sigma_proof, pks[i], point);
+    //     i += 1;
+    // }
 }
 
 #[test]
