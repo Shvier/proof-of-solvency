@@ -9,6 +9,8 @@ use num_bigint::BigUint;
 
 use std::ops::Mul;
 
+use crate::utils::{convert_to_bigints, skip_leading_zeros_and_convert_to_bigints};
+
 use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
@@ -135,22 +137,4 @@ impl Prover {
         }
         proofs
     }
-}
-
-fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: DenseUVPolynomial<F>>(
-    p: &P,
-) -> (usize, Vec<F::BigInt>) {
-    let mut num_leading_zeros = 0;
-    while num_leading_zeros < p.coeffs().len() && p.coeffs()[num_leading_zeros].is_zero() {
-        num_leading_zeros += 1;
-    }
-    let coeffs = convert_to_bigints(&p.coeffs()[num_leading_zeros..]);
-    (num_leading_zeros, coeffs)
-}
-
-fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
-    let coeffs = ark_std::cfg_iter!(p)
-        .map(|s| s.into_bigint())
-        .collect::<Vec<_>>();
-    coeffs
 }
