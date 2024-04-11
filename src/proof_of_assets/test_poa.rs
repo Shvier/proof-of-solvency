@@ -1,5 +1,6 @@
-use ark_ec::{AffineRepr, CurveGroup};
-use ark_std::{rand::Rng, test_rng};
+use ark_bls12_381::Bls12_381;
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_std::{rand::Rng, test_rng, UniformRand};
 use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
 
@@ -7,10 +8,12 @@ use crate::proof_of_assets::verifier::Verifier;
 
 use super::PoA;
 
+type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
+
 #[test]
 fn test_poa() {
     let rng = &mut test_rng();
-    let range = 0..10;
+    let range = 0..16;
     let selector: Vec<bool> = range.clone().into_iter().map(| _ | {
         let rand = rng.gen_range(0..10);
         rand % 2 == 1
@@ -22,7 +25,7 @@ fn test_poa() {
     let mut pks = Vec::<secp256k1::G1Affine>::new();
     let mut sks = Vec::<BigUint>::new();
 
-    for _ in range {
+    for _ in range.clone() {
         let private_key: BigUint = rng.sample(RandomBits::new(256u64));
         let public_key = poa.prover.sigma.gs.mul_bigint(private_key.to_u64_digits());
         sks.push(private_key);
@@ -33,7 +36,12 @@ fn test_poa() {
     let vk = &poa.prover.vk;
     let omega = &poa.prover.omega;
 
-    Verifier::batch_check(vk, &proofs, pks, *omega);
+    Verifier::batch_check(
+        vk, 
+        &proofs, 
+        pks, 
+        *omega,
+    );
 
     // single check
     // use ark_ff::Field;

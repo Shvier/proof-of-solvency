@@ -1,15 +1,16 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::{pairing::Pairing, AffineRepr};
+use ark_poly::{univariate::DensePolynomial, EvaluationDomain, Evaluations, Radix2EvaluationDomain};
 use ark_poly_commit::kzg10::{Commitment, VerifierKey};
 use ark_ff::Field;
-use ark_std::{test_rng, One};
+use ark_std::{rand::RngCore, test_rng, One};
 use ark_test_curves::secp256k1;
 
 use std::ops::Mul;
 
-use crate::{proof_of_assets::sigma::SigmaProtocol, utils::{batch_check, OpenEval}};
+use crate::{proof_of_assets::sigma::SigmaProtocol, utils::{batch_check, BatchCheckProof, OpenEval}};
 
-use super::{prover::PolyCommitProof, sigma::SigmaProtocolProof};
+use super::{prover::{AssetsProof, PolyCommitProof}, sigma::SigmaProtocolProof};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
@@ -58,6 +59,22 @@ impl Verifier {
             i += 1;
         }
         let rng = &mut test_rng();
-        batch_check(vk, &cms, &witnesses, &points, &evals, &gammas, true, rng);
+        batch_check(
+            vk, 
+            BatchCheckProof {
+                commitments: cms,
+                witnesses: witnesses,
+                points: points,
+                open_evals: evals,
+                gammas: gammas,
+            }, rng);
+    }
+
+    pub fn generate_balance_poly(bals: &Vec<BlsScalarField>) -> DensePolynomial<BlsScalarField> {
+        let domain_size = bals.len().checked_next_power_of_two().expect("Unsupported domain size");
+        let domain = Radix2EvaluationDomain::new(domain_size).unwrap();
+        let evaluations = Evaluations::from_vec_and_domain(bals.to_vec(), domain);
+        evaluations.interpolate()
+    }
     }
 }

@@ -24,8 +24,6 @@ impl PoA {
 
     pub fn run(&self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) {
         let prover = &self.prover;
-        assert!(prover.degree == pks.len() && pks.len() == sks.len());
-
         prover.generate_proof(pks, sks);
     }
 }
