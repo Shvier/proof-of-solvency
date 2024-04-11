@@ -37,9 +37,20 @@ pub fn pedersen_commit<G: AffineRepr>(
     g.mul_bigint(s) + h.mul_bigint(t)
 }
 
+#[derive(Clone)]
 pub enum OpenEval<E: Pairing> {
     Plain(E::ScalarField, E::ScalarField),
     Committed(E::G1Affine),
+}
+
+impl<E> OpenEval<E> where E: Pairing {
+    pub fn into_committed_value(&self) -> E::G1Affine {
+        if let OpenEval::Committed(value) = self {
+            *value
+        } else {
+            panic!("Not a committed value")
+        }
+    }
 }
 
 // the batched KZG opening scheme in [GWC19]
@@ -95,17 +106,21 @@ pub fn batch_open<E: Pairing, R: RngCore>(
     (h, open_evals, gamma)
 }
 
+pub struct BatchCheckProof<E: Pairing> {
+    pub commitments: Vec<Vec<Commitment<E>>>,
+    pub witnesses: Vec<E::G1>,
+    pub points: Vec<E::ScalarField>,
+    pub open_evals: Vec<Vec<OpenEval<E>>>,
+    pub gammas: Vec<E::ScalarField>,
+}
+
 // the batched KZG opening scheme in [GWC19]
 pub fn batch_check<E: Pairing, R: RngCore>(
     vk: &VerifierKey<E>,
-    commitments: &Vec<Vec<Commitment<E>>>,
-    witnesses: &Vec<E::G1>,
-    points: &Vec<E::ScalarField>,
-    open_evals: &Vec<Vec<OpenEval<E>>>,
-    gammas: &Vec<E::ScalarField>,
-    is_committed_eval: bool,
+    proof: BatchCheckProof<E>,
     rng: &mut R,
 ) {
+    let BatchCheckProof { commitments, witnesses, points, open_evals, gammas } = proof;
     assert!(&points.len() == &open_evals.len() && &points.len() == &witnesses.len() && &gammas.len() == &points.len());
     let mut left = E::G1::zero();
     let mut right = E::G1::zero();
@@ -118,25 +133,17 @@ pub fn batch_check<E: Pairing, R: RngCore>(
         let mut j = 0u64;
         let mut sum_cm = E::G1::zero();
         let mut sum_committed_eval = E::G1::zero();
-        let mut sum_value = E::ScalarField::zero();
-        let mut sum_blinding = E::ScalarField::zero();
         for (cm, eval) in cms.into_iter().zip(evals) {
             let factor = gamma.pow(&[j]);
             sum_cm += cm.0.mul(factor);
             match eval {
                 OpenEval::Plain(value, blinding) => {
-                    sum_value += value.mul(factor);
-                    sum_blinding += blinding.mul(factor);
+                    sum_committed_eval += vk.g.mul(value).mul(factor) + vk.gamma_g.mul(blinding).mul(factor)
                 }
                 OpenEval::Committed(committed_eval) => sum_committed_eval += committed_eval.mul(factor)
             };
             j += 1;
         }
-        let sum_committed_eval = if is_committed_eval {
-            sum_committed_eval
-        } else {
-            vk.g.mul(sum_value) + vk.gamma_g.mul(sum_blinding)
-        };
         let factor = r.pow(&[i as u64]);
         left += (sum_cm - sum_committed_eval).mul(factor);
         let witness = witnesses[i];

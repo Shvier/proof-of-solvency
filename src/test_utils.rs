@@ -7,7 +7,7 @@ use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10}
 use ark_ff::{FftField, Field};
 use ark_std::{rand::Rng, test_rng};
 
-use crate::utils::{batch_check, batch_open, OpenEval};
+use crate::utils::{batch_check, batch_open, BatchCheckProof, OpenEval};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
@@ -47,7 +47,7 @@ fn test_batch_check() {
         randoms.push(randomness);
     }
 
-    let perfect_hding = true;
+    let perfect_hiding = true;
 
     let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
     let mut open_points = Vec::<BlsScalarField>::new();
@@ -60,7 +60,7 @@ fn test_batch_check() {
         let point = omega.pow(&[power]);
         open_points.push(point);
         let (witness, open_evals, gamma) = 
-            batch_open(&powers, &polys, &randoms, point, perfect_hding, rng);
+            batch_open(&powers, &polys, &randoms, point, perfect_hiding, rng);
         witnesses.push(witness);
         evals.push(open_evals);
         gammas.push(gamma);
@@ -71,14 +71,24 @@ fn test_batch_check() {
     let point = omega.pow(&[power]);
     open_points.push(point);
     let (witness, open_evals, gamma) = 
-        batch_open(&powers, &[polys[1].clone()].to_vec(), &[randoms[1].clone()].to_vec(), point, perfect_hding, rng);
+        batch_open(&powers, &[polys[1].clone()].to_vec(), &[randoms[1].clone()].to_vec(), point, perfect_hiding, rng);
     witnesses.push(witness);
     evals.push(open_evals);
     gammas.push(gamma);
     commitments.push([cms[1].clone()].to_vec());
 
     let start_time = Instant::now();
-    batch_check(&vk, &commitments, &witnesses, &open_points, &evals, &gammas, perfect_hding, rng);
+    batch_check(
+        &vk, 
+        BatchCheckProof {
+            commitments,
+            witnesses,
+            points: open_points,
+            open_evals: evals,
+            gammas,
+        }, 
+        rng
+    );
     let total_time =
         start_time.elapsed().as_secs() as f64 + start_time.elapsed().subsec_nanos() as f64 / 1e9;
     println!("batch check executed time: {}", total_time);

@@ -204,4 +204,93 @@ impl Prover {
 
         (w_1, w_2)
     }
+
+    pub fn prove_accumulator(&self, bal_poly: &DensePolynomial<BlsScalarField>, gamma: BlsScalarField) -> AssetsProof {
+        let domain = Radix2EvaluationDomain::<BlsScalarField>::new(self.selector.len()).unwrap();
+        let accum_poly = self.construct_accumulator(bal_poly, domain);
+        let rng = &mut test_rng();
+        let (cm_accum, random_accum) = self.commit(&accum_poly, rng);
+        let (cm_bal, random_bal) = self.commit(&bal_poly, rng);
+        let (cm_selector, random_selector) = self.commit_to_selector();
+
+        let (w_1, w_2) = self.compute_w1_w2(&accum_poly, bal_poly, domain);
+        let w = linear_combine_polys::<Bls12_381>(&vec![w_1, w_2], gamma);
+
+        let zed = DenseOrSparsePolynomial::from(domain.vanishing_polynomial());
+        let (quotient, remainder) = DenseOrSparsePolynomial::from(w).divide_with_q_and_r(&zed).unwrap();
+        assert!(remainder.is_zero());
+        let (cm_q, random_q) = self.commit(&quotient, rng);
+
+        let challenge = calculate_hash(&vec![
+            HashBox::Bls(cm_accum.0.into_group()), 
+            HashBox::Bls(cm_bal.0.into_group()),
+            HashBox::Bls(cm_selector.0.into_group()),
+            HashBox::Bls(cm_q.0.into_group()),
+        ]);
+        let challenge_point = BlsScalarField::from(challenge);
+
+        let max_degree = self.domain_size;
+        let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
+        let powers_of_gamma_g = (0..=max_degree)
+            .map(|i| self.pp.powers_of_gamma_g[&i])
+            .collect();
+        let powers: Powers<Bls12_381> = Powers {
+            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
+            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
+        };
+        let (h_1, open_evals_1, gamma_1) = batch_open(
+            &powers, 
+            &vec![accum_poly.clone(), bal_poly.clone(), self.poly.clone(), quotient], 
+            &vec![random_accum.clone(), random_bal, random_selector, random_q], 
+            challenge_point, 
+            false, 
+            rng
+        );
+        let (h_2, open_evals_2, gamma_2) = batch_open(
+            &powers, 
+            &vec![accum_poly.clone()], 
+            &vec![random_accum.clone()], 
+            challenge_point * self.omega, 
+            false, 
+            rng
+        );
+        let (h_3, open_evals_3, gamma_3) = batch_open(
+            &powers, 
+            &vec![accum_poly.clone()], 
+            &vec![random_accum.clone()], 
+            BlsScalarField::one(), 
+            true, 
+            rng
+        );
+        AssetsProof {
+            batch_check_proof: BatchCheckProof { 
+                commitments: vec![
+                    vec![cm_accum, cm_bal, cm_selector, cm_q],
+                    vec![cm_accum],
+                    vec![cm_accum],
+                ], 
+                witnesses: vec![
+                    h_1,
+                    h_2,
+                    h_3,
+                ], 
+                points: vec![
+                    challenge_point,
+                    challenge_point * self.omega,
+                    BlsScalarField::one(),
+                ], 
+                open_evals: vec![
+                    open_evals_1,
+                    open_evals_2,
+                    open_evals_3.clone(),
+                ], 
+                gammas: vec![
+                    gamma_1,
+                    gamma_2,
+                    gamma_3,
+                ],
+            },
+            committed_assets: open_evals_3[0].borrow().into_committed_value(),
+        }
+    }
 }
