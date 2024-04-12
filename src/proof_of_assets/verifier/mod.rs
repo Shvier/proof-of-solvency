@@ -91,6 +91,8 @@ impl Verifier {
         ]);
         let challenge_point = BlsScalarField::from(challenge);
         assert_eq!(challenge_point, proof.batch_check_proof.points[0]);
+        assert_eq!(challenge_point * proof.omega, proof.batch_check_proof.points[1]);
+        assert_eq!(BlsScalarField::one(), proof.batch_check_proof.points[2]);
 
         let accum_tau = &proof.batch_check_proof.open_evals[0][0].into_plain_value().0;
         let b_tau = &proof.batch_check_proof.open_evals[0][1].into_plain_value().0;
