@@ -51,6 +51,15 @@ fn test_poa() {
     //     Verifier::check(vk, cm, pc_proof, sigma_proof, pks[i], point);
     //     i += 1;
     // }
+
+    let balances: Vec<BlsScalarField> = range.clone().into_iter().map(| _ |
+        BlsScalarField::rand(rng)
+    )
+    .collect();
+    let bal_poly = Verifier::generate_balance_poly(&balances);
+    let gamma = BlsScalarField::rand(rng);
+    let assets_proof = poa.prover.prove_accumulator(&bal_poly, gamma);
+    Verifier::validate_assets_proof(&vk, &assets_proof, rng);
 }
 
 #[test]

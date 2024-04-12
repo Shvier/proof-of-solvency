@@ -9,7 +9,7 @@ use num_bigint::BigUint;
 
 use std::{borrow::Borrow, ops::Mul};
 
-use crate::{proof_of_liability::utils::linear_combine_polys, utils::{batch_open, calculate_hash, convert_to_bigints, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox, OpenEval}};
+use crate::{proof_of_liability::utils::linear_combine_polys, utils::{batch_open, calculate_hash, convert_to_bigints, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
 use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 
@@ -26,8 +26,8 @@ pub struct PolyCommitProof {
 }
 
 pub struct AssetsProof {
-    batch_check_proof: BatchCheckProof<Bls12_381>,
-    committed_assets: <Bls12_381 as Pairing>::G1Affine,
+    pub batch_check_proof: BatchCheckProof<Bls12_381>,
+    pub committed_assets: <Bls12_381 as Pairing>::G1Affine,
 }
 
 pub struct Prover {
@@ -102,7 +102,11 @@ impl Prover {
         KZG10::<Bls12_381, UniPoly_381>::commit(&powers, &poly, Some(poly.degree()), Some(rng)).unwrap()
     }
 
-    pub fn open(&self, point: BlsScalarField, randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
+    pub fn open_selector(&self, point: BlsScalarField, randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
+        self.open(&self.poly, point, randomness)
+    }
+
+    pub fn open(&self, poly: &UniPoly_381, point: BlsScalarField, randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
         let max_degree = self.max_degree;
         let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
         let powers_of_gamma_g = (0..=max_degree)
@@ -113,7 +117,7 @@ impl Prover {
             powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
         };
 
-        let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(&self.poly, point, randomness).unwrap();
+        let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(poly, point, randomness).unwrap();
         let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
 
         let mut w = <Bls12_381 as Pairing>::G1::msm_bigint(
@@ -130,7 +134,7 @@ impl Prover {
             &random_witness_coeffs,
         );
 
-        let eval = self.poly.evaluate(&point);
+        let eval = poly.evaluate(&point);
         let committed_eval = self.sigma.gb.mul(eval) + self.sigma.hb.mul(blinding_evaluation);
 
         PolyCommitProof {
@@ -150,7 +154,7 @@ impl Prover {
             let pk = pks[i];
             let sk = &sks[i];
             let point = omega.pow(&[i as u64]);
-            let pc_proof = self.open(point, &randomness);
+            let pc_proof = self.open(&self.poly, point, &randomness);
             let sigma_proof = self.sigma.generate_proof(pk, pc_proof.rand.into_bigint().into(), s, sk.clone());
             proofs.push((cm, pc_proof, sigma_proof))
         }
@@ -229,7 +233,7 @@ impl Prover {
         ]);
         let challenge_point = BlsScalarField::from(challenge);
 
-        let max_degree = self.domain_size;
+        let max_degree = self.max_degree;
         let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
         let powers_of_gamma_g = (0..=max_degree)
             .map(|i| self.pp.powers_of_gamma_g[&i])
@@ -246,6 +250,7 @@ impl Prover {
             false, 
             rng
         );
+
         let (h_2, open_evals_2, gamma_2) = batch_open(
             &powers, 
             &vec![accum_poly.clone()], 

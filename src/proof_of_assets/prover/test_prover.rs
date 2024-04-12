@@ -27,7 +27,7 @@ fn test_prover() {
         let s = selector[i];
         let (cm, randomness) = prover.commit_to_selector();
         let point = omega.pow(&[i as u64]);
-        let proof = prover.open(point, &randomness);
+        let proof = prover.open_selector(point, &randomness);
         let proof = Proof {
             w: proof.witness,
             random_v: Some(proof.rand),

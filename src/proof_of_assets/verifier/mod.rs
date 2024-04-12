@@ -8,7 +8,7 @@ use ark_test_curves::secp256k1;
 
 use std::ops::Mul;
 
-use crate::{proof_of_assets::sigma::SigmaProtocol, utils::{batch_check, BatchCheckProof, OpenEval}};
+use crate::{proof_of_assets::sigma::SigmaProtocol, utils::{batch_check, calculate_hash, BatchCheckProof, HashBox, OpenEval}};
 
 use super::{prover::{AssetsProof, PolyCommitProof}, sigma::SigmaProtocolProof};
 
@@ -61,13 +61,14 @@ impl Verifier {
         let rng = &mut test_rng();
         batch_check(
             vk, 
-            BatchCheckProof {
+            &BatchCheckProof {
                 commitments: cms,
                 witnesses: witnesses,
                 points: points,
                 open_evals: evals,
                 gammas: gammas,
-            }, rng);
+            }, 
+            rng);
     }
 
     pub fn generate_balance_poly(bals: &Vec<BlsScalarField>) -> DensePolynomial<BlsScalarField> {
@@ -76,5 +77,8 @@ impl Verifier {
         let evaluations = Evaluations::from_vec_and_domain(bals.to_vec(), domain);
         evaluations.interpolate()
     }
+
+    pub fn validate_assets_proof<R: RngCore>(vk: &VerifierKey<Bls12_381>, proof: &AssetsProof, rng: &mut R) {
+        batch_check(vk, &proof.batch_check_proof, rng);
     }
 }

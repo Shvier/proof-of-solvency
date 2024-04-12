@@ -80,7 +80,7 @@ fn test_batch_check() {
     let start_time = Instant::now();
     batch_check(
         &vk, 
-        BatchCheckProof {
+        &BatchCheckProof {
             commitments,
             witnesses,
             points: open_points,

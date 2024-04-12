@@ -51,6 +51,14 @@ impl<E> OpenEval<E> where E: Pairing {
             panic!("Not a committed value")
         }
     }
+
+    pub fn into_plain_value(&self) -> (E::ScalarField, E::ScalarField) {
+        if let OpenEval::Plain(value, r) = self {
+            (*value, *r)
+        } else {
+            panic!("Not a plain value")
+        }
+    } 
 }
 
 // the batched KZG opening scheme in [GWC19]
@@ -117,7 +125,7 @@ pub struct BatchCheckProof<E: Pairing> {
 // the batched KZG opening scheme in [GWC19]
 pub fn batch_check<E: Pairing, R: RngCore>(
     vk: &VerifierKey<E>,
-    proof: BatchCheckProof<E>,
+    proof: &BatchCheckProof<E>,
     rng: &mut R,
 ) {
     let BatchCheckProof { commitments, witnesses, points, open_evals, gammas } = proof;
