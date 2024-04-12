@@ -133,17 +133,21 @@ pub fn batch_check<E: Pairing, R: RngCore>(
         let mut j = 0u64;
         let mut sum_cm = E::G1::zero();
         let mut sum_committed_eval = E::G1::zero();
+        let mut sum_value = E::ScalarField::zero();
+        let mut sum_blinding = E::ScalarField::zero();
         for (cm, eval) in cms.into_iter().zip(evals) {
             let factor = gamma.pow(&[j]);
             sum_cm += cm.0.mul(factor);
             match eval {
                 OpenEval::Plain(value, blinding) => {
-                    sum_committed_eval += vk.g.mul(value).mul(factor) + vk.gamma_g.mul(blinding).mul(factor)
+                    sum_value += value.mul(factor);
+                    sum_blinding += blinding.mul(factor);
                 }
                 OpenEval::Committed(committed_eval) => sum_committed_eval += committed_eval.mul(factor)
             };
             j += 1;
         }
+        sum_committed_eval += vk.g.mul(sum_value) + vk.gamma_g.mul(sum_blinding);
         let factor = r.pow(&[i as u64]);
         left += (sum_cm - sum_committed_eval).mul(factor);
         let witness = witnesses[i];
