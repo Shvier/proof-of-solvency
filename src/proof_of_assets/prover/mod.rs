@@ -28,6 +28,8 @@ pub struct PolyCommitProof {
 pub struct AssetsProof {
     pub batch_check_proof: BatchCheckProof<Bls12_381>,
     pub committed_assets: <Bls12_381 as Pairing>::G1Affine,
+    pub omega: BlsScalarField,
+    pub domain_size: usize,
 }
 
 pub struct Prover {
@@ -296,6 +298,8 @@ impl Prover {
                 ],
             },
             committed_assets: open_evals_3[0].borrow().into_committed_value(),
+            omega: self.omega,
+            domain_size: self.domain_size,
         }
     }
 }

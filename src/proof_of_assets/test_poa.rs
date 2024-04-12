@@ -59,7 +59,7 @@ fn test_poa() {
     let bal_poly = Verifier::generate_balance_poly(&balances);
     let gamma = BlsScalarField::rand(rng);
     let assets_proof = poa.prover.prove_accumulator(&bal_poly, gamma);
-    Verifier::validate_assets_proof(&vk, &assets_proof, rng);
+    Verifier::validate_assets_proof(&vk, &assets_proof, gamma, rng);
 }
 
 #[test]
