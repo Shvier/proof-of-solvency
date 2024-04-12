@@ -211,7 +211,8 @@ impl Prover {
         (w_1, w_2)
     }
 
-    pub fn prove_accumulator(&self, bal_poly: &DensePolynomial<BlsScalarField>, gamma: BlsScalarField) -> AssetsProof {
+    // return Randomness only for DEBUG to verify the correctness of assets
+    pub fn prove_accumulator(&self, bal_poly: &DensePolynomial<BlsScalarField>, gamma: BlsScalarField) -> (AssetsProof, Randomness<BlsScalarField, UniPoly_381>) {
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(self.selector.len()).unwrap();
         let accum_poly = self.construct_accumulator(bal_poly, domain);
         let rng = &mut test_rng();
@@ -269,7 +270,7 @@ impl Prover {
             true, 
             rng
         );
-        AssetsProof {
+        (AssetsProof {
             batch_check_proof: BatchCheckProof { 
                 commitments: vec![
                     vec![cm_accum, cm_bal, cm_selector, cm_q],
@@ -300,6 +301,7 @@ impl Prover {
             committed_assets: open_evals_3[0].borrow().into_committed_value(),
             omega: self.omega,
             domain_size: self.domain_size,
-        }
+        },
+        random_accum)
     }
 }

@@ -1,8 +1,11 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-use ark_std::{rand::Rng, test_rng, UniformRand};
+use ark_std::{rand::Rng, test_rng, UniformRand, Zero, One};
+use ark_poly::Polynomial;
 use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
+
+use std::ops::Mul;
 
 use crate::proof_of_assets::verifier::Verifier;
 
@@ -58,8 +61,24 @@ fn test_poa() {
     .collect();
     let bal_poly = Verifier::generate_balance_poly(&balances);
     let gamma = BlsScalarField::rand(rng);
-    let assets_proof = poa.prover.prove_accumulator(&bal_poly, gamma);
+    let (assets_proof, randomness) = poa.prover.prove_accumulator(&bal_poly, gamma);
+    assert_eq!(balances.len().checked_next_power_of_two().unwrap(), assets_proof.domain_size);
     Verifier::validate_assets_proof(&vk, &assets_proof, gamma, rng);
+
+    let sum_assets: BlsScalarField = balances
+        .into_iter()
+        .zip(selector)
+        .map(| (bal, s) | {
+            match s {
+                true => bal,
+                false => BlsScalarField::zero(),
+            }
+        })
+        .sum();
+    let committed_assets = assets_proof.committed_assets;
+    let r = randomness.blinding_polynomial.evaluate(&BlsScalarField::one());
+    let assets = vk.g.mul(sum_assets) + vk.gamma_g.mul(r);
+    assert_eq!(committed_assets, assets);
 }
 
 #[test]
