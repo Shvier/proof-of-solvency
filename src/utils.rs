@@ -1,6 +1,6 @@
 use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr, VariableBaseMSM, CurveGroup};
 use ark_ff::{PrimeField, Field};
-use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
+use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10};
 use ark_std::{rand::RngCore, UniformRand, Zero};
 use ark_test_curves::secp256k1;
@@ -186,4 +186,49 @@ pub fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
         .map(|s| s.into_bigint())
         .collect::<Vec<_>>();
     coeffs
+}
+
+pub fn convert_to_zk_polynomial<F: PrimeField, D: EvaluationDomain<F>, R: RngCore>(
+    p: &DensePolynomial<F>,
+    domain: D,
+    number_of_points: usize,
+    rng: &mut R,
+) -> (DensePolynomial<F>, Vec<(F, F)>) {
+    let evaluations = p.clone().evaluate_over_domain(domain);
+    let zed = DenseOrSparsePolynomial::from(domain.vanishing_polynomial());
+
+    let mut new_p = p.clone();
+
+    let mut eval_points = Vec::<(F, F)>::new();
+    
+    for _ in 0..number_of_points {
+        let point = domain.sample_element_outside_domain(rng);
+        let eval = F::rand(rng);
+
+        let mut divisor = F::one();
+        for i in 0..evaluations.evals.len() {
+            let x = domain.element(i);
+            let point_minus_x = point - x;
+            divisor *= point_minus_x;
+        }
+
+        let mut x_minus_extra_point = DensePolynomial::<F>::from_coefficients_vec(vec![F::one()]);
+        for (prev_point, _) in eval_points.clone() {
+            let point_minus_prv = point - prev_point;
+            divisor *= point_minus_prv;
+            let x_minus_prev = DensePolynomial::<F>::from_coefficients_vec(vec![-prev_point, F::one()]);
+            x_minus_extra_point = &x_minus_extra_point * &x_minus_prev;
+        }
+
+        let divisor_poly = DenseOrSparsePolynomial::from(DensePolynomial::from_coefficients_vec(vec![divisor]));
+        let (q, r) = zed.divide_with_q_and_r(&divisor_poly).unwrap();
+        assert!(r.is_zero());
+        let q = &q * &x_minus_extra_point;
+
+        let eval_minus_p = eval - new_p.evaluate(&point);
+        let m = &q * &DensePolynomial::from_coefficients_vec(vec![eval_minus_p]);
+        new_p = &new_p + &m;
+        eval_points.push((point, eval));
+    }
+    (new_p, eval_points)
 }

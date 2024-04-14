@@ -2,12 +2,12 @@ use std::time::Instant;
 
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
-use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10};
 use ark_ff::{FftField, Field};
-use ark_std::{rand::Rng, test_rng};
+use ark_std::{rand::Rng, test_rng, UniformRand};
 
-use crate::utils::{batch_check, batch_open, BatchCheckProof, OpenEval};
+use crate::utils::{batch_check, batch_open, convert_to_zk_polynomial, BatchCheckProof, OpenEval};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
@@ -100,5 +100,27 @@ fn test_batch_check_multi_times() {
         println!("Job {} start", i);
         test_batch_check();
         println!("Job {} done", i);
+    }
+}
+
+#[test]
+fn test_convert_to_zk_polynomial() {
+    let rng = &mut test_rng();
+    let range = 0..10;
+    let evals: Vec<BlsScalarField> = range.clone().into_iter().map(| _ |
+        BlsScalarField::rand(rng)
+    )
+    .collect();
+    let domain = Radix2EvaluationDomain::<BlsScalarField>::new(evals.len().checked_next_power_of_two().unwrap()).unwrap();
+    let evaluations = Evaluations::<BlsScalarField, Radix2EvaluationDomain<BlsScalarField>>::from_vec_and_domain(evals.clone(), domain);
+    let poly = evaluations.interpolate();
+    let (zk_poly, extra_evals) = convert_to_zk_polynomial(&poly, domain, 2, rng);
+    let new_evals = zk_poly.clone().evaluate_over_domain(domain).evals;
+    for (left, right) in new_evals.into_iter().zip(evals.clone()) {
+        assert_eq!(left, right);
+    }
+
+    for (point, extra_eval) in extra_evals {
+        assert_eq!(extra_eval, zk_poly.evaluate(&point));
     }
 }

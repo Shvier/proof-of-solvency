@@ -16,7 +16,7 @@ type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 #[test]
 fn test_poa() {
     let rng = &mut test_rng();
-    let range = 0..16;
+    let range = 0..110;
     let selector: Vec<bool> = range.clone().into_iter().map(| _ | {
         let rand = rng.gen_range(0..10);
         rand % 2 == 1
