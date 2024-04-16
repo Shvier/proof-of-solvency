@@ -3,7 +3,7 @@ use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain,
 use ark_ff::{FftField, Field};
 use ark_std::One;
 
-use crate::proof_of_liability::{error::Error, utils::{build_bit_vector, compute_accumulative_vector, interpolate_poly, substitute_x}};
+use crate::{proof_of_liability::error::Error, utils::{build_bit_vector, compute_accumulative_vector, substitute_x, interpolate_poly}};
 
 pub struct Intermediate<E: Pairing> {
     pub polys: Vec<DensePolynomial<E::ScalarField>>,

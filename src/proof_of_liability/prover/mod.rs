@@ -4,7 +4,7 @@ use ark_bls12_381::Bls12_381;
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10};
 use ark_std::{rand::RngCore, test_rng, Zero};
 
-use crate::{proof_of_liability::{prover::intermediate::Intermediate, utils::{linear_combine_polys}}, utils::{batch_open, calculate_hash, HashBox, OpenEval}};
+use crate::{proof_of_liability::prover::intermediate::Intermediate, utils::{batch_open, calculate_hash, linear_combine_polys, HashBox, OpenEval}};
 
 #[cfg(test)]
 mod test_intermediate;

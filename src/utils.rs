@@ -1,6 +1,6 @@
 use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr, VariableBaseMSM, CurveGroup};
-use ark_ff::{PrimeField, Field};
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
+use ark_ff::{FftField, Field, PrimeField};
+use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10};
 use ark_std::{rand::RngCore, UniformRand, Zero};
 use ark_test_curves::secp256k1;
@@ -12,6 +12,137 @@ use std::ops::Mul;
 pub enum HashBox {
     Secp(secp256k1::G1Projective),
     Bls(Projective<ark_bls12_381::g1::Config>),
+}
+
+pub fn build_up_bits(value: u64, max_bits: usize) -> Vec<u64> {
+    assert!(value <= 2_u64.pow(u32::try_from(max_bits).unwrap()));
+    let mut bits: Vec<u64> = Vec::with_capacity(max_bits);
+    for _ in 0..max_bits {
+        bits.push(0);
+    }
+    let mut v = value;
+    bits[max_bits - 1] = value;
+    let mut i = bits.len() - 2;
+    loop {
+        bits[i] = v / 2;
+        v = bits[i];
+        if i == 0 {
+            break;
+        }
+        i -= 1;
+    }
+    bits
+}
+
+pub fn build_bit_vector(
+    balances: &Vec<u64>,
+    max_bits: usize,
+) -> Vec<Vec<u64>> {
+    let num_of_l = balances.len();
+    let mut vec = Vec::<Vec<u64>>::with_capacity(max_bits);
+    for _ in 0..max_bits {
+        let mut v = Vec::<u64>::with_capacity(num_of_l);
+        for _ in 0..num_of_l {
+            v.push(0);
+        }
+        vec.push(v);
+    }
+    for i in 0..num_of_l {
+        let bal = balances[i];
+        let bits = build_up_bits(bal, max_bits);
+        for j in 0..max_bits {
+            vec[j][i] = bits[max_bits - j - 1];
+        }
+    }
+    vec
+}
+
+pub fn compute_accumulative_vector<F: FftField>(
+    vec: &[u64]
+) -> Vec<F> {
+    let vec: Vec<F> = vec.into_iter().map(| e | F::from(*e)).collect();
+    let len = vec.len();
+    let mut acc = Vec::<F>::with_capacity(len);
+    for _ in 0..len { acc.push(F::zero()); }
+    acc[len - 1] = vec[len - 1];
+    for i in (0..len - 1).rev() {
+        acc[i] = acc[i + 1] + vec[i];
+    }
+    acc
+}
+
+pub fn interpolate_poly<F: FftField, D: EvaluationDomain<F>,>(
+    vectors: &Vec<u64>, 
+    domain: D
+) -> DensePolynomial<F> {
+    let ff_vectors = vectors.into_iter().map(|v| {F::from(*v)}).collect();
+    let evaluations = Evaluations::from_vec_and_domain(ff_vectors, domain);
+    evaluations.interpolate()
+}
+
+pub fn substitute_x<
+F: PrimeField,
+D: EvaluationDomain<F>,
+>(
+    p: &DensePolynomial<F>, 
+    scale: usize, 
+    shift: usize,
+) -> DensePolynomial<F> {
+    let deg = p.coeffs.len();
+    let domain = D::new(deg).unwrap();
+    let mut new_evals = Vec::<F>::new();
+    let root = F::get_root_of_unity(deg as u64).unwrap();
+    let mut pos = shift;
+    for _ in 0..deg {
+        let point: F = root.pow(&[pos as u64]);
+        let eval = p.evaluate(&point);
+        new_evals.push(eval);
+        pos = pos + scale;
+    }
+    let new_eval = Evaluations::<F, D>::from_vec_and_domain(new_evals, domain);
+    let new_p = new_eval.interpolate();
+    // let result = constrain_polys(&p.coeffs, &new_p.coeffs, scale, shift);
+    // result.expect("Failed to satisfy transform constraints");
+    new_p
+}
+
+// pub fn constrain_polys<
+// F: PrimeField,
+// >(
+//     old_coeffs: &Vec<F>, 
+//     new_coeffs: &Vec<F>, 
+//     scale_factor: usize, 
+//     shift_factor: usize,
+// ) -> Result<()> {
+//     let root_of_unity = F::get_root_of_unity(old_coeffs.len() as u64).expect("Cannot find root of unity");
+//     let mut rng = test_rng();
+//     let point = rng.gen_range(0..new_coeffs.len());
+//     let circuit = PolyTransConstraints::<F> {
+//         point,
+//         root_of_unity,
+//         scale_factor,
+//         shift_factor,
+//         old_coeffs: old_coeffs.to_vec(),
+//         new_coeffs: new_coeffs.to_vec(),
+//     };
+//     let cs = ConstraintSystem::<F>::new_ref();
+//     circuit.generate_constraints(cs)
+// }
+
+pub fn linear_combine_polys<
+E: Pairing,
+>(
+    polys: &Vec<DensePolynomial<E::ScalarField>>,
+    gamma: E::ScalarField,
+) -> DensePolynomial<E::ScalarField> {
+    let mut w = DensePolynomial::<E::ScalarField>::zero();
+    for idx in 0..polys.len() {
+        let p = &polys[idx];
+        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec([E::ScalarField::from(gamma.pow(&[idx as u64]))].to_vec());
+        let tmp = &constant_term * p;
+        w += &tmp;
+    }
+    w
 }
 
 pub fn calculate_hash(objects: &Vec<HashBox>) -> BigUint {

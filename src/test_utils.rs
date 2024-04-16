@@ -7,9 +7,35 @@ use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10}
 use ark_ff::{FftField, Field};
 use ark_std::{rand::Rng, test_rng, UniformRand};
 
-use crate::utils::{batch_check, batch_open, convert_to_zk_polynomial, BatchCheckProof, OpenEval};
+use crate::utils::{batch_check, batch_open, build_bit_vector, build_up_bits, convert_to_zk_polynomial, BatchCheckProof, OpenEval};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
+
+#[cfg(test)]
+fn compare_vecs(va: &[u64], vb: &[u64]) -> bool {
+    (va.len() == vb.len()) &&
+     va.iter()
+       .zip(vb)
+       .all(|(a,b)| *a == *b)
+}
+
+#[test]
+fn test_build_up_bits() {
+    let bits_8 = [0, 0, 1, 2, 5, 10, 20];
+    let bits = build_up_bits(20, 7);
+    assert!(compare_vecs(&bits_8, &bits));
+
+    let bits_16 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 6, 12, 25, 50];
+    let bits = build_up_bits(50, 15);
+    assert!(compare_vecs(&bits_16, &bits));
+}
+
+#[test]
+fn test_build_bit_vector() {
+    let liab: Vec<u64> = [20, 50, 30, 40, 10, 60, 80, 70].to_vec();
+    let vec = build_bit_vector(&liab, 16);
+    println!("{:?}", vec);
+}
 
 #[test]
 fn test_batch_check() {
