@@ -1,12 +1,10 @@
 use ark_ec::pairing::Pairing;
-use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain};
-use ark_ff::{FftField, Field, Fp, FpConfig, Zero};
-use ark_poly_commit::{kzg10::KZG10, LabeledCommitment};
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Evaluations, Radix2EvaluationDomain};
+use ark_ff::{FftField, Field};
 use ark_std::One;
 
-use crate::proof_of_liability::{error::Error, utils::{build_bit_vector, calculate_hash, compute_accumulative_vector, interpolate_poly, linear_combine_polys, substitute_x}};
+use crate::proof_of_liability::{error::Error, utils::{build_bit_vector, compute_accumulative_vector, interpolate_poly, substitute_x}};
 
-#[derive(Clone)]
 pub struct Intermediate<E: Pairing> {
     pub polys: Vec<DensePolynomial<E::ScalarField>>,
     pub domain: Radix2EvaluationDomain<E::ScalarField>,
@@ -14,17 +12,19 @@ pub struct Intermediate<E: Pairing> {
 
 impl<E: Pairing> Intermediate<E> {
     pub fn new(
-        liabilities: &Vec<u64>,
+        balances: &Vec<u64>,
         max_bits: usize,
     ) -> Result<Self, Error> {
-        let bit_vec = build_bit_vector(liabilities, max_bits);
-        let accumulator = compute_accumulative_vector(&liabilities);
+        let bit_vec = build_bit_vector(balances, max_bits);
+        let accumulator = compute_accumulative_vector::<E::ScalarField>(&balances);
 
-        let domain_size = liabilities.len();
+        let domain_size = balances.len().checked_next_power_of_two().unwrap();
         let domain = Radix2EvaluationDomain::<E::ScalarField>::new(domain_size).expect("Unsupported domain length");
 
         let mut polys = Vec::<DensePolynomial<E::ScalarField>>::new();
-        let p0 = interpolate_poly(&accumulator, domain);
+
+        let evaluations = Evaluations::from_vec_and_domain(accumulator, domain);
+        let p0 = evaluations.interpolate();
         polys.push(p0);
         for vec in bit_vec {
             let p = interpolate_poly(&vec, domain);
@@ -82,17 +82,5 @@ impl<E: Pairing> Intermediate<E> {
         let one_term = &constant_term - &zero_term;
         let v = &zero_term * &one_term;
         v
-    }
-
-    pub(super) fn compute_w(&self, gamma: E::ScalarField) -> DensePolynomial<E::ScalarField> {
-        let w1 = self.compute_w1();
-        let w2 = self.compute_w2();
-        let w3 = self.compute_w3();
-        let mut polys = Vec::<DensePolynomial<E::ScalarField>>::from([w1, w2, w3]);
-        for idx in 1..self.polys.len() - 1 {
-            let v = self.compute_v(idx);
-            polys.push(v);
-        }
-        linear_combine_polys::<E>(&polys, gamma)
     }
 }

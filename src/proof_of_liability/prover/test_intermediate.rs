@@ -2,7 +2,7 @@ use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_poly::Polynomial;
 use ark_ff::{FftField, Field, Zero};
-use ark_std::{rand::Rng, test_rng, UniformRand};
+use ark_std::{rand::Rng, test_rng};
 
 use super::intermediate::Intermediate;
 
@@ -70,19 +70,5 @@ fn test_compute_v() {
             let eval = v.evaluate(&point);
             assert!(eval.is_zero());
         }
-    }
-}
-
-#[test]
-fn test_compute_w() {
-    let inter = Intermediate::random();
-    let rng = &mut test_rng();
-    let gamma = BLSScalarField::rand(rng);
-    let w = inter.compute_w(gamma);
-    let omega = BLSScalarField::get_root_of_unity(inter.domain.size).unwrap();
-    for idx in 0..inter.domain.size {
-        let point = omega.pow(&[idx as u64]);
-        let eval = w.evaluate(&point);
-        assert!(eval.is_zero());
     }
 }

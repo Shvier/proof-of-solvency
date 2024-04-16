@@ -35,10 +35,10 @@ pub fn build_up_bits(value: u64, max_bits: usize) -> Vec<u64> {
 }
 
 pub fn build_bit_vector(
-    liabilities: &Vec<u64>,
+    balances: &Vec<u64>,
     max_bits: usize,
 ) -> Vec<Vec<u64>> {
-    let num_of_l = liabilities.len();
+    let num_of_l = balances.len();
     let mut vec = Vec::<Vec<u64>>::with_capacity(max_bits);
     for _ in 0..max_bits {
         let mut v = Vec::<u64>::with_capacity(num_of_l);
@@ -48,8 +48,8 @@ pub fn build_bit_vector(
         vec.push(v);
     }
     for i in 0..num_of_l {
-        let liab = liabilities[i];
-        let bits = build_up_bits(liab, max_bits);
+        let bal = balances[i];
+        let bits = build_up_bits(bal, max_bits);
         for j in 0..max_bits {
             vec[j][i] = bits[max_bits - j - 1];
         }
@@ -57,12 +57,13 @@ pub fn build_bit_vector(
     vec
 }
 
-pub fn compute_accumulative_vector(
+pub fn compute_accumulative_vector<F: FftField>(
     vec: &[u64]
-) -> Vec<u64> {
+) -> Vec<F> {
+    let vec: Vec<F> = vec.into_iter().map(| e | F::from(*e)).collect();
     let len = vec.len();
-    let mut acc = Vec::<u64>::with_capacity(len);
-    for _ in 0..len { acc.push(0); }
+    let mut acc = Vec::<F>::with_capacity(len);
+    for _ in 0..len { acc.push(F::zero()); }
     acc[len - 1] = vec[len - 1];
     for i in (0..len - 1).rev() {
         acc[i] = acc[i + 1] + vec[i];
@@ -165,12 +166,6 @@ E: Pairing,
     (combined_comm, combined_value)
 }
 
-pub fn calculate_hash<T: Hash>(t: &T) -> u64 {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish()
-}
-
 #[cfg(test)]
 fn compare_vecs(va: &[u64], vb: &[u64]) -> bool {
     (va.len() == vb.len()) &&
@@ -194,12 +189,5 @@ fn test_build_up_bits() {
 fn test_build_bit_vector() {
     let liab: Vec<u64> = [20, 50, 30, 40, 10, 60, 80, 70].to_vec();
     let vec = build_bit_vector(&liab, 16);
-    println!("{:?}", vec);
-}
-
-#[test]
-fn test_compute_accumulative_vector() {
-    let liab: Vec<u64> = [20, 50, 30, 40, 10, 60, 80, 70].to_vec();
-    let vec = compute_accumulative_vector(&liab);
     println!("{:?}", vec);
 }
