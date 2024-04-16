@@ -1,0 +1,81 @@
+use ark_bls12_381::Bls12_381;
+use ark_ec::{pairing::Pairing, AffineRepr};
+use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
+use ark_poly_commit::kzg10::VerifierKey;
+use ark_std::{rand::RngCore, One, Zero};
+use ark_ff::Field;
+
+use crate::utils::{batch_check, calculate_hash, BatchCheckProof, HashBox};
+
+use super::prover::IntermediateProof;
+
+type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
+
+pub struct Verifier {
+
+}
+
+impl Verifier {
+    pub fn validate_intermediate_proof<R: RngCore>(
+        vk: &VerifierKey<Bls12_381>,
+        proof: IntermediateProof,
+        gamma: BlsScalarField,
+        rng: &mut R,
+    ) {
+        let hash_boxes: Vec<HashBox> = proof.cms.clone().into_iter().map(| cm | HashBox::Bls(cm.0.into_group())).collect();
+        let tau = BlsScalarField::from(calculate_hash(&hash_boxes));
+
+        let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
+        let x_minus_last_omega = DensePolynomial::<BlsScalarField>::from_coefficients_vec(vec![-last, BlsScalarField::one()]);
+
+        let zed = proof.domain.vanishing_polynomial();
+        let zed_tau = zed.evaluate(&tau);
+
+        let evals_at_tau_omega = proof.proof_at_tau_omega.1.clone();
+        let p0_tau_omega = evals_at_tau_omega[0].into_plain_value().0;
+        let evals_at_tau = proof.proof_at_tau.1.clone();
+        let p0_tau = evals_at_tau[0].into_plain_value().0;
+        let p1_tau = evals_at_tau[1].into_plain_value().0;
+
+        let x_minus_last_omega_tau = x_minus_last_omega.evaluate(&tau);
+        let w1_tau = (p0_tau - p0_tau_omega - p1_tau) * x_minus_last_omega_tau;
+
+        let (q, r) = DenseOrSparsePolynomial::from(zed).divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
+        assert!(r.is_zero());
+        let q_tau = q.evaluate(&tau);
+        let w2_tau = (p0_tau - p1_tau) * q_tau;
+
+        let pm_tau = evals_at_tau[evals_at_tau.len() - 2].into_plain_value().0;
+        let w3_tau = pm_tau * (pm_tau - BlsScalarField::one());
+
+        let mut factor = gamma * gamma;
+        let mut lhs = w1_tau + gamma * w2_tau + factor * w3_tau;
+
+        for i in 1..evals_at_tau.len() - 2 {
+            let pi_tau = evals_at_tau[i].into_plain_value().0;
+            let next_p_tau = evals_at_tau[i + 1].into_plain_value().0;
+            let double_next_p_tau = next_p_tau + next_p_tau;
+            let zero_term = pi_tau - double_next_p_tau;
+            let v_tau = zero_term * (BlsScalarField::one() - zero_term);
+            factor *= gamma;
+            lhs += factor * v_tau;
+        }
+
+        let q_tau = evals_at_tau.last().unwrap().into_plain_value().0;
+        let rhs = q_tau * zed_tau;
+
+        assert_eq!(lhs, rhs);
+
+        let cm_p0 = proof.cms.first().unwrap().clone();
+        batch_check(
+            &vk, 
+            &BatchCheckProof {
+                commitments: vec![proof.cms, vec![cm_p0]],
+                witnesses: vec![proof.proof_at_tau.0, proof.proof_at_tau_omega.0],
+                points: vec![tau, tau * proof.omega],
+                open_evals: vec![proof.proof_at_tau.1, proof.proof_at_tau_omega.1],
+                gammas: vec![proof.proof_at_tau.2, proof.proof_at_tau_omega.2],
+            }, 
+            rng);
+    }
+}

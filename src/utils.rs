@@ -129,18 +129,18 @@ D: EvaluationDomain<F>,
 //     circuit.generate_constraints(cs)
 // }
 
-pub fn linear_combine_polys<
-E: Pairing,
->(
+pub fn linear_combine_polys<E: Pairing>(
     polys: &Vec<DensePolynomial<E::ScalarField>>,
     gamma: E::ScalarField,
 ) -> DensePolynomial<E::ScalarField> {
     let mut w = DensePolynomial::<E::ScalarField>::zero();
+    let mut factor = E::ScalarField::from(1u64);
     for idx in 0..polys.len() {
         let p = &polys[idx];
-        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec([E::ScalarField::from(gamma.pow(&[idx as u64]))].to_vec());
+        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec(vec![factor]);
         let tmp = &constant_term * p;
         w += &tmp;
+        factor *= gamma;
     }
     w
 }

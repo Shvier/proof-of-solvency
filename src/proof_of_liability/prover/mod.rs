@@ -1,5 +1,5 @@
 use ark_ec::{pairing::Pairing, AffineRepr};
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, EvaluationDomain, Polynomial};
+use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, EvaluationDomain, Polynomial, Radix2EvaluationDomain};
 use ark_bls12_381::Bls12_381;
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10};
 use ark_std::{rand::RngCore, test_rng, Zero};
@@ -19,11 +19,12 @@ type UniPoly_381 = DensePolynomial<<Bls12_381 as Pairing>::ScalarField>;
 
 #[derive(Clone)]
 pub struct IntermediateProof {
-    proof_at_tau: (<Bls12_381 as Pairing>::G1, Vec<OpenEval<Bls12_381>>, BlsScalarField),
-    proof_at_tau_omega: (<Bls12_381 as Pairing>::G1, Vec<OpenEval<Bls12_381>>, BlsScalarField),
-    cms: Vec<Commitment<Bls12_381>>,
+    pub proof_at_tau: (<Bls12_381 as Pairing>::G1, Vec<OpenEval<Bls12_381>>, BlsScalarField),
+    pub proof_at_tau_omega: (<Bls12_381 as Pairing>::G1, Vec<OpenEval<Bls12_381>>, BlsScalarField),
+    pub cms: Vec<Commitment<Bls12_381>>,
+    pub omega: BlsScalarField,
+    pub domain: Radix2EvaluationDomain<BlsScalarField>,
     randoms: Vec<Randomness<BlsScalarField, UniPoly_381>>,
-    omega: BlsScalarField,
 }
 
 pub struct Prover<'a> {
@@ -112,8 +113,9 @@ impl Prover<'_> {
             proof_at_tau: (h_1, open_evals_1, gamma_1), 
             proof_at_tau_omega: (h_2, open_evals_2, gamma_2), 
             cms: cms, 
+            omega: omega,
+            domain: inter.domain,
             randoms: randoms, 
-            omega: omega
         }
     }
 
