@@ -6,6 +6,7 @@ use ark_std::{rand::RngCore, One, Zero};
 
 use crate::{proof_of_liability::error::Error, utils::{batch_open, build_bit_vector, compute_accumulative_vector, interpolate_poly, linear_combine_polys, substitute_x, OpenEval}};
 
+#[derive(Clone)]
 pub struct IntermediateProof<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
     pub proof_at_tau: (E::G1, Vec<OpenEval<E>>, E::ScalarField),
     pub proof_at_tau_omega: (E::G1, Vec<OpenEval<E>>, E::ScalarField),
@@ -139,8 +140,8 @@ impl<E: Pairing> Intermediate<E> {
     pub fn generate_proof<R: RngCore>(
         &self,
         powers: &Powers<E>,
-        cms: Vec<Commitment<E>>,
-        randoms: Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
+        cms: &Vec<Commitment<E>>,
+        randoms: &Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
         tau: E::ScalarField,
         rng: &mut R,
     ) -> IntermediateProof<E, DensePolynomial<E::ScalarField>> {
@@ -151,10 +152,10 @@ impl<E: Pairing> Intermediate<E> {
         IntermediateProof { 
             proof_at_tau: (h_1, open_evals_1, gamma_1), 
             proof_at_tau_omega: (h_2, open_evals_2, gamma_2), 
-            cms, 
+            cms: cms.to_vec(), 
             omega: omega,
             domain: self.domain,
-            randoms: randoms, 
+            randoms: randoms.to_vec(), 
         }
     }
 }

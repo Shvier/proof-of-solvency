@@ -1,13 +1,13 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
-use ark_poly_commit::kzg10::VerifierKey;
+use ark_poly_commit::kzg10::{Commitment, VerifierKey};
 use ark_std::{rand::RngCore, One, Zero};
 use ark_ff::Field;
 
 use crate::utils::{batch_check, BatchCheckProof};
 
-use super::prover::intermediate::IntermediateProof;
+use super::prover::{intermediate::IntermediateProof, LiabilityProof};
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
@@ -75,5 +75,26 @@ impl Verifier {
                 gammas: vec![proof.proof_at_tau.2, proof.proof_at_tau_omega.2],
             }, 
             rng);
+    }
+
+    pub fn validate_liability_proof<R: RngCore>(
+        vk: &VerifierKey<Bls12_381>,
+        proof: LiabilityProof,
+        sum_comm_p0: Commitment<Bls12_381>,
+        tau: BlsScalarField,
+        gamma: BlsScalarField,
+        rng: &mut R,
+    ) {
+        batch_check(&vk, &BatchCheckProof {
+            commitments: vec![vec![sum_comm_p0]],
+            witnesses: vec![proof.witness_sigma_p0],
+            points: vec![BlsScalarField::one()],
+            open_evals: vec![vec![proof.sigma_p0_eval]],
+            gammas: vec![BlsScalarField::zero()],
+        }, rng);
+
+        for inter_proof in proof.intermediate_proofs {
+            Self::validate_intermediate_proof(vk, inter_proof, tau, gamma, rng);
+        }
     }
 }
