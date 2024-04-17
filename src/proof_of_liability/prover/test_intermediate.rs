@@ -20,14 +20,14 @@ impl Intermediate<Bls12_381> {
         }
         let liab: Vec<u64> = liabs;
         let gamma = BLSScalarField::rand(rng);
-        Intermediate::new(&liab, MAX_BITS, gamma).unwrap()
+        Intermediate::new(&liab, MAX_BITS, gamma, rng).unwrap()
     }
 }
 
 #[test]
 fn test_compute_w1() {
     let inter = Intermediate::random();
-    let w1 = Intermediate::<Bls12_381>::compute_w1(&inter.polys, inter.domain);
+    let w1 = Intermediate::<Bls12_381>::compute_w1(&inter.polys, inter.domain, &inter.p0_extra_points);
     let omega = BLSScalarField::get_root_of_unity(inter.domain.size).unwrap();
     for idx in 0..inter.domain.size {
         let point = omega.pow(&[idx as u64]);

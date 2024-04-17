@@ -375,5 +375,9 @@ pub fn incremental_interpolate<F: FftField, D: EvaluationDomain<F>>(
         eval_points.push((*p_x, *p_y));
     }
 
+    for (x, y) in points {
+        assert_eq!(*y, new_p.evaluate(&x));
+    }
+
     new_p
 }

@@ -4,7 +4,7 @@ use ark_ff::{FftField, Field};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, KZG10};
 use ark_std::{rand::RngCore, One, Zero};
 
-use crate::{proof_of_liability::error::Error, utils::{batch_open, build_bit_vector, compute_accumulative_vector, interpolate_poly, linear_combine_polys, substitute_x, OpenEval}};
+use crate::{proof_of_liability::error::Error, utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, substitute_x, OpenEval}};
 
 #[derive(Clone)]
 pub struct IntermediateProof<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
@@ -18,15 +18,17 @@ pub struct IntermediateProof<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
 
 pub struct Intermediate<E: Pairing> {
     pub domain: Radix2EvaluationDomain<E::ScalarField>,
+    pub p0_extra_points: Vec<(E::ScalarField, E::ScalarField)>,
     pub(super) polys: Vec<DensePolynomial<E::ScalarField>>,
     q_w: DensePolynomial<E::ScalarField>,
 }
 
 impl<E: Pairing> Intermediate<E> {
-    pub fn new(
+    pub fn new<R: RngCore>(
         balances: &Vec<u64>,
         max_bits: usize,
         gamma: E::ScalarField,
+        rng: &mut R,
     ) -> Result<Self, Error> {
         let bit_vec = build_bit_vector(balances, max_bits);
         let accumulator = compute_accumulative_vector::<E::ScalarField>(&balances);
@@ -38,13 +40,15 @@ impl<E: Pairing> Intermediate<E> {
 
         let evaluations = Evaluations::from_vec_and_domain(accumulator, domain);
         let p0 = evaluations.interpolate();
+        let (p0, extra_points) = convert_to_zk_polynomial(&p0, domain, 2, rng);
         polys.push(p0);
         for vec in bit_vec {
             let p = interpolate_poly(&vec, domain);
+            let (p, _) = convert_to_zk_polynomial(&p, domain, 1, rng);
             polys.push(p);
         }
 
-        let w1 = Self::compute_w1(&polys, domain);
+        let w1 = Self::compute_w1(&polys, domain, &extra_points);
         let w2 = Self::compute_w2(&polys, domain);
         let w3 = Self::compute_w3(&polys);
         let mut combined_polys = Vec::<DensePolynomial<E::ScalarField>>::from([w1, w2, w3]);
@@ -61,15 +65,22 @@ impl<E: Pairing> Intermediate<E> {
             domain,
             polys,
             q_w,
+            p0_extra_points: extra_points,
         })
     }
 
-    pub(super) fn compute_w1(polys: &Vec<DensePolynomial<E::ScalarField>>, domain: Radix2EvaluationDomain<E::ScalarField>) -> DensePolynomial<E::ScalarField> {
-        let p0 = &polys[0];
-        let p0_plus_1 = substitute_x::<E::ScalarField, Radix2EvaluationDomain<E::ScalarField>>(&p0, 1, 1);
-        let p1 = &polys[1];
+    pub(super) fn compute_w1(polys: &Vec<DensePolynomial<E::ScalarField>>, domain: Radix2EvaluationDomain<E::ScalarField>, extra_points: &Vec<(E::ScalarField, E::ScalarField)>) -> DensePolynomial<E::ScalarField> {
         let domain_size = domain.size;
         let omega = E::ScalarField::get_root_of_unity(domain_size).expect("Unsupported domain size");
+
+        let p0 = &polys[0];
+        let mut p0_evals = p0.clone().evaluate_over_domain(domain).evals;
+        p0_evals.rotate_left(1);
+        let p0_plus_1 = Evaluations::from_vec_and_domain(p0_evals, domain).interpolate();
+
+        let points = extra_points.into_iter().map(| (x, y) | { (*x / omega, *y) }).collect();
+        let p0_plus_1 = incremental_interpolate(&p0_plus_1, domain, &points);
+        let p1 = &polys[1];
         let x_minus_last_omega = DensePolynomial::<E::ScalarField>::from_coefficients_vec([-omega.pow(&[domain_size - 1]), E::ScalarField::one()].to_vec());
         let mut w1 = p0 - &p0_plus_1;
         w1 = &w1 - p1;
