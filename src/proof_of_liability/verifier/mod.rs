@@ -81,7 +81,7 @@ impl Verifier {
         vk: &VerifierKey<Bls12_381>,
         proof: LiabilityProof,
         sum_comm_p0: Commitment<Bls12_381>,
-        tau: BlsScalarField,
+        taus: &Vec<BlsScalarField>,
         gamma: BlsScalarField,
         rng: &mut R,
     ) {
@@ -93,8 +93,8 @@ impl Verifier {
             gammas: vec![BlsScalarField::zero()],
         }, rng);
 
-        for inter_proof in proof.intermediate_proofs {
-            Self::validate_intermediate_proof(vk, inter_proof, tau, gamma, rng);
+        for (inter_proof, tau) in proof.intermediate_proofs.into_iter().zip(taus) {
+            Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, rng);
         }
     }
 }

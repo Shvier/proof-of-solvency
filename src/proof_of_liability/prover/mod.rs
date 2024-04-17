@@ -93,7 +93,7 @@ impl Prover<'_> {
         inters: &Vec<Intermediate<Bls12_381>>,
         comms: &Vec<Vec<Commitment<Bls12_381>>>,
         rands: &Vec<Vec<Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>,
-        tau: BlsScalarField,
+        taus: &Vec<BlsScalarField>,
         rng: &mut R,
     ) -> (LiabilityProof, Randomness<BlsScalarField, UniPoly_381>) {
         let mut sigma_p0 = DensePolynomial::zero();
@@ -104,6 +104,7 @@ impl Prover<'_> {
         for inter in inters {
             let cms = &comms[i];
             let randoms = &rands[i];
+            let tau = taus[i];
             let proof = inter.generate_proof(&self.powers, cms, randoms, tau, rng);
             proofs.push(proof);
             sigma_p0 = &sigma_p0 + &inter.polys[0];

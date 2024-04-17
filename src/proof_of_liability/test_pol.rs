@@ -1,12 +1,10 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_poly_commit::{kzg10::Commitment, PCCommitment};
-use ark_std::{rand::{distributions::Uniform, Rng}, test_rng, UniformRand, One, Zero};
-use ark_poly::Polynomial;
+use ark_std::{rand::{distributions::Uniform, Rng}, test_rng, UniformRand, One};
+use ark_poly::{Polynomial, EvaluationDomain};
 
 use std::ops::{AddAssign, Mul};
-
-use crate::utils::{batch_check, BatchCheckProof};
 
 use super::{prover::Prover, verifier::Verifier};
 
@@ -20,7 +18,7 @@ fn test_pol() {
     
     let rng = &mut test_rng();
     let upper_bound = 2_u64.pow(63);
-    let num_of_groups: usize = 1;
+    let num_of_groups: usize = 3;
 
     let balances: Vec<u64> = (0..num_of_groups * group_size).map(| _ | rng.sample(Uniform::new(1, upper_bound))).collect();
     let prover = Prover::setup(&balances, group_size, max_degree);
@@ -30,8 +28,9 @@ fn test_pol() {
 
     let gamma = BlsScalarField::rand(rng);
     let (inters, comms, rands) = prover.run(max_bits, gamma, rng);
-    let tau = BlsScalarField::rand(rng);
-    let (proof, rand_sigma_p0) = prover.generate_proof(&inters, &comms, &rands, tau, rng);
+
+    let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
+    let (proof, rand_sigma_p0) = prover.generate_proof(&inters, &comms, &rands, &taus, rng);
 
     for inter_proof in proof.clone().intermediate_proofs {
         let comm_p0 = inter_proof.cms[0];
@@ -41,5 +40,5 @@ fn test_pol() {
     let liability = prover.vk.g.mul(sum_bals) + prover.vk.gamma_g.mul(hiding);
     assert_eq!(liability, proof.sigma_p0_eval.into_committed_value());
 
-    Verifier::validate_liability_proof(&prover.vk, proof.clone(), sum_comm_p0, tau, gamma, rng);
+    Verifier::validate_liability_proof(&prover.vk, proof.clone(), sum_comm_p0, &taus, gamma, rng);
 }
