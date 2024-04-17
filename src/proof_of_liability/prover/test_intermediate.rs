@@ -20,7 +20,7 @@ impl Intermediate<Bls12_381> {
         }
         let liab: Vec<u64> = liabs;
         let gamma = BLSScalarField::rand(rng);
-        Intermediate::new(&liab, MAX_BITS, gamma, rng).unwrap()
+        Intermediate::new(&liab, MAX_BITS, gamma, rng)
     }
 }
 

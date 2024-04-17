@@ -78,7 +78,7 @@ impl Prover<'_> {
         let mut comms = Vec::<Vec<Commitment<Bls12_381>>>::new();
         let mut rands = Vec::<Vec<Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>::new();
         for bals in self.balances.as_slice() {
-            let inter = Intermediate::<Bls12_381>::new(bals, max_bits, gamma, rng).unwrap();
+            let inter = Intermediate::<Bls12_381>::new(bals, max_bits, gamma, rng);
             let (cms, randoms) = inter.compute_commitments(&self.powers, rng);
             inters.push(inter);
             comms.push(cms);

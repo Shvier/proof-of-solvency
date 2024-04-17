@@ -4,7 +4,7 @@ use ark_ff::{FftField, Field};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, KZG10};
 use ark_std::{rand::RngCore, One, Zero};
 
-use crate::{proof_of_liability::error::Error, utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, substitute_x, OpenEval}};
+use crate::utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, OpenEval};
 
 #[derive(Clone)]
 pub struct IntermediateProof<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
@@ -29,7 +29,7 @@ impl<E: Pairing> Intermediate<E> {
         max_bits: usize,
         gamma: E::ScalarField,
         rng: &mut R,
-    ) -> Result<Self, Error> {
+    ) -> Self {
         let bit_vec = build_bit_vector(balances, max_bits);
         let accumulator = compute_accumulative_vector::<E::ScalarField>(&balances);
 
@@ -61,12 +61,12 @@ impl<E: Pairing> Intermediate<E> {
         let (q_w, r) = DenseOrSparsePolynomial::from(w).divide_with_q_and_r(&zed).unwrap();
         assert!(r.is_zero());
 
-        Ok(Self {
+        Self {
             domain,
             polys,
             q_w,
             p0_extra_points: extra_points,
-        })
+        }
     }
 
     pub(super) fn compute_w1(polys: &Vec<DensePolynomial<E::ScalarField>>, domain: Radix2EvaluationDomain<E::ScalarField>, extra_points: &Vec<(E::ScalarField, E::ScalarField)>) -> DensePolynomial<E::ScalarField> {
