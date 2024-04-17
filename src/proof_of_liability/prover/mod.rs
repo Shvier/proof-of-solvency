@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ark_ec::pairing::Pairing;
 use ark_ff::Zero;
 use ark_poly::univariate::DensePolynomial;
@@ -74,6 +76,8 @@ impl Prover<'_> {
     pub fn run<R: RngCore>(
         &self, max_bits: usize, gamma: BlsScalarField, rng: &mut R
     ) -> (Vec<Intermediate<Bls12_381>>, Vec<Vec<Commitment<Bls12_381>>>, Vec<Vec<Randomness<BlsScalarField, UniPoly_381>>>) {
+        let now = Instant::now();
+        println!("Start building the intermediate polynomials");
         let mut inters = Vec::<Intermediate<Bls12_381>>::new();
         let mut comms = Vec::<Vec<Commitment<Bls12_381>>>::new();
         let mut rands = Vec::<Vec<Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>::new();
@@ -84,6 +88,8 @@ impl Prover<'_> {
             comms.push(cms);
             rands.push(randoms);
         }
+        let elapsed = now.elapsed();
+        println!("The intermediate polynomials are built: {:.2?}", elapsed);
         (inters, comms, rands)
     }
 
@@ -96,6 +102,8 @@ impl Prover<'_> {
         taus: &Vec<BlsScalarField>,
         rng: &mut R,
     ) -> (LiabilityProof, Randomness<BlsScalarField, UniPoly_381>) {
+        let now = Instant::now();
+        println!("Start generating the liability proof");
         let mut sigma_p0 = DensePolynomial::zero();
         let mut rand_sigma_p0 = Randomness::<BlsScalarField, DensePolynomial<BlsScalarField>>::empty();
         
@@ -115,6 +123,9 @@ impl Prover<'_> {
 
         let (h_sigma_p0, sigma_p0_eval, _) = batch_open(&self.powers, &vec![sigma_p0], &vec![rand_sigma_p0.clone()], BlsScalarField::one(), true, rng);
         
+        let elapsed = now.elapsed();
+        println!("Liability proof is generated: {:.2?}", elapsed);
+
         (LiabilityProof {
             witness_sigma_p0: h_sigma_p0,
             sigma_p0_eval: sigma_p0_eval[0].clone(),

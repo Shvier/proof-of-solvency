@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
@@ -85,6 +87,9 @@ impl Verifier {
         gamma: BlsScalarField,
         rng: &mut R,
     ) {
+        let now = Instant::now();
+        println!("Start verifying the liablity proof");
+
         batch_check(&vk, &BatchCheckProof {
             commitments: vec![vec![sum_comm_p0]],
             witnesses: vec![proof.witness_sigma_p0],
@@ -93,8 +98,17 @@ impl Verifier {
             gammas: vec![BlsScalarField::zero()],
         }, rng);
 
+        let elapsed = now.elapsed();
+        println!("The committed liability checking passed: {:.2?}", elapsed);
+
+        let mut i = 1usize;
         for (inter_proof, tau) in proof.intermediate_proofs.into_iter().zip(taus) {
+            let now = Instant::now();
+            println!("Start verifying the intermediate proof {}", i);
             Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, rng);
+            let elapsed = now.elapsed();
+            println!("The intermediate proof {} checking passed: {:.2?}", i, elapsed);
+            i += 1;
         }
     }
 }
