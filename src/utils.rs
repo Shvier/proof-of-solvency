@@ -325,6 +325,22 @@ pub fn convert_to_zk_polynomial<F: PrimeField, D: EvaluationDomain<F>, R: RngCor
     number_of_points: usize,
     rng: &mut R,
 ) -> (DensePolynomial<F>, Vec<(F, F)>) {
+    let points: Vec<(F, F)> = (0..number_of_points).into_iter().map(| _ | {
+        let point = domain.sample_element_outside_domain(rng);
+        let eval = F::rand(rng);
+        (point, eval)
+    })
+    .collect();
+
+    let new_p = incremental_interpolate(&p, domain, &points);
+    (new_p, points)
+}
+
+pub fn incremental_interpolate<F: FftField, D: EvaluationDomain<F>>(
+    p: &DensePolynomial<F>, 
+    domain: D, 
+    points: &Vec<(F, F)>, 
+) -> DensePolynomial<F> {
     let evaluations = p.clone().evaluate_over_domain(domain);
     let zed = DenseOrSparsePolynomial::from(domain.vanishing_polynomial());
 
@@ -332,20 +348,17 @@ pub fn convert_to_zk_polynomial<F: PrimeField, D: EvaluationDomain<F>, R: RngCor
 
     let mut eval_points = Vec::<(F, F)>::new();
     
-    for _ in 0..number_of_points {
-        let point = domain.sample_element_outside_domain(rng);
-        let eval = F::rand(rng);
-
+    for (p_x, p_y) in points {
         let mut divisor = F::one();
         for i in 0..evaluations.evals.len() {
             let x = domain.element(i);
-            let point_minus_x = point - x;
+            let point_minus_x = *p_x - x;
             divisor *= point_minus_x;
         }
 
         let mut x_minus_extra_point = DensePolynomial::<F>::from_coefficients_vec(vec![F::one()]);
         for (prev_point, _) in eval_points.clone() {
-            let point_minus_prv = point - prev_point;
+            let point_minus_prv = *p_x - prev_point;
             divisor *= point_minus_prv;
             let x_minus_prev = DensePolynomial::<F>::from_coefficients_vec(vec![-prev_point, F::one()]);
             x_minus_extra_point = &x_minus_extra_point * &x_minus_prev;
@@ -356,10 +369,11 @@ pub fn convert_to_zk_polynomial<F: PrimeField, D: EvaluationDomain<F>, R: RngCor
         assert!(r.is_zero());
         let q = &q * &x_minus_extra_point;
 
-        let eval_minus_p = eval - new_p.evaluate(&point);
+        let eval_minus_p = *p_y - new_p.evaluate(&p_x);
         let m = &q * &DensePolynomial::from_coefficients_vec(vec![eval_minus_p]);
         new_p = &new_p + &m;
-        eval_points.push((point, eval));
+        eval_points.push((*p_x, *p_y));
     }
-    (new_p, eval_points)
+
+    new_p
 }
