@@ -1,8 +1,11 @@
+use std::sync::{Arc, Mutex};
+
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_ff::{FftField, Field};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, KZG10};
-use ark_std::{rand::RngCore, One, Zero};
+use ark_std::{rand::RngCore, test_rng, One, Zero};
+use crossbeam::thread;
 
 use crate::utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, OpenEval};
 
@@ -146,6 +149,46 @@ impl<E: Pairing> Intermediate<E> {
         cms.push(cm_q);
         randoms.push(random_q);
         (cms, randoms)
+    }
+
+    pub fn concurrent_compute_commitments<'a>(
+        this: Mutex<&Self>, 
+        powers: &'a Mutex<Powers<'a, E>>,
+    ) -> Arc<Mutex<Vec<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)>>> {
+        let commitments = Arc::new(Mutex::new(Vec::<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)>::new()));
+        
+        let polys = this.lock().unwrap().polys.clone();
+        thread::scope(| s | {
+            let mut handles = vec![];
+
+            for p in polys {
+                let commitments = commitments.clone();
+                let handle = s.spawn(move | _ | {
+                    let rng = &mut test_rng();
+                    let powers = powers.lock().unwrap();
+                    let (cm_p, random_p) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &p, Some(p.degree()), Some(rng)).unwrap();
+                    let mut commitments = commitments.lock().unwrap();
+                    commitments.push((cm_p, random_p));
+                });
+                handles.push(handle);
+            }
+
+            for handle in handles {
+                handle.join().unwrap();
+            }
+        })
+        .unwrap();
+
+        {
+            let rng = &mut test_rng();
+            let powers = powers.lock().unwrap();
+            let q_w = this.lock().unwrap().q_w.clone();
+            let (cm_q, random_q) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &q_w, Some(q_w.degree()), Some(rng)).unwrap();
+            let mut commitments = commitments.lock().unwrap();
+            commitments.push((cm_q, random_q));
+        }
+        
+        commitments
     }
 
     pub fn generate_proof<R: RngCore>(

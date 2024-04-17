@@ -16,6 +16,7 @@ ark-r1cs-std = "0.4.0"
 ark-relations = "0.4.0"
 ark-std = { version = "0.4.0", features = [ "getrandom" ] }
 ark-test-curves = { version = "0.4.2", features = [ "bls12_381_curve", "secp256k1" ] }
+crossbeam = "0.8.4"
 hex = "0.4.3"
 num-bigint = { version = "0.4.4", features = [ "rand" ] }
 sha2 = "0.10.8"

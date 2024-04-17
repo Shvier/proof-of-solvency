@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{sync::{Arc, Mutex}, time::Instant};
 
 use ark_ec::pairing::Pairing;
 use ark_ff::Zero;
@@ -6,6 +6,7 @@ use ark_poly::univariate::DensePolynomial;
 use ark_bls12_381::Bls12_381;
 use ark_poly_commit::{kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10}, PCRandomness};
 use ark_std::{rand::RngCore, test_rng, One};
+use crossbeam::thread;
 
 use crate::utils::{batch_open, OpenEval};
 
@@ -91,6 +92,56 @@ impl Prover<'_> {
         let elapsed = now.elapsed();
         println!("The intermediate polynomials are built: {:.2?}", elapsed);
         (inters, comms, rands)
+    }
+
+    pub fn concurrent_run<R: RngCore>(
+        &self, max_bits: usize, gamma: BlsScalarField, rng: &mut R
+    ) -> Vec<(Intermediate<Bls12_381>, Vec<(Commitment<Bls12_381>, Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>)>)> {
+        let now = Instant::now();
+        println!("Start building the intermediate polynomials");
+
+        let proofs = Arc::new(
+            Mutex::new(
+                Vec::<(Intermediate<Bls12_381>, 
+                    Vec<(Commitment<Bls12_381>, Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>)>
+                )>::new()
+            ));
+        
+        let balances = self.balances.clone();
+        thread::scope(| s | {
+            let mut handles = vec![];
+
+            for bals in balances {
+                let proofs = proofs.clone();
+                let powers = self.powers.clone();
+                let handle = s.spawn(move | _ | {
+                    let rng = &mut test_rng();
+                    let inter = Intermediate::<Bls12_381>::new(&bals, max_bits, gamma, rng);
+                    let commitments = Intermediate::<Bls12_381>::concurrent_compute_commitments(Mutex::new(&inter), &Mutex::new(powers));
+                    let mut proofs = proofs.lock().unwrap();
+                    let data_clone = {
+                        let locked_data = commitments.lock().unwrap();
+                        locked_data.clone() 
+                    };
+                    proofs.push((inter, data_clone));
+                });
+                handles.push(handle);
+            }
+
+            for handle in handles {
+                handle.join().unwrap();
+            }
+        })
+        .unwrap();
+
+        let elapsed = now.elapsed();
+        println!("The intermediate polynomials are built: {:.2?}", elapsed);
+        Arc::try_unwrap(proofs)
+        .ok()
+        .map(|mutex| {
+            mutex.into_inner().unwrap()
+        })
+        .unwrap()
     }
 
     // return Randomness only for DEBUG to verify the correctness of liability
