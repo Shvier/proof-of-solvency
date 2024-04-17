@@ -1,8 +1,8 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
+use ark_ff::{FftField, Field};
 use ark_poly::Polynomial;
-use ark_ff::{FftField, Field, Zero};
-use ark_std::{rand::Rng, test_rng};
+use ark_std::{rand::Rng, test_rng, UniformRand, Zero};
 
 use super::intermediate::Intermediate;
 
@@ -19,14 +19,15 @@ impl Intermediate<Bls12_381> {
             liabs.push(rand);
         }
         let liab: Vec<u64> = liabs;
-        Intermediate::new(&liab, MAX_BITS).unwrap()
+        let gamma = BLSScalarField::rand(rng);
+        Intermediate::new(&liab, MAX_BITS, gamma).unwrap()
     }
 }
 
 #[test]
 fn test_compute_w1() {
     let inter = Intermediate::random();
-    let w1 = inter.compute_w1();
+    let w1 = Intermediate::<Bls12_381>::compute_w1(&inter.polys, inter.domain);
     let omega = BLSScalarField::get_root_of_unity(inter.domain.size).unwrap();
     for idx in 0..inter.domain.size {
         let point = omega.pow(&[idx as u64]);
@@ -38,7 +39,7 @@ fn test_compute_w1() {
 #[test]
 fn test_compute_w2() {
     let inter = Intermediate::random();
-    let w2 = inter.compute_w2();
+    let w2 = Intermediate::<Bls12_381>::compute_w2(&inter.polys, inter.domain);
     let omega = BLSScalarField::get_root_of_unity(inter.domain.size).unwrap();
     for idx in 0..inter.domain.size {
         let point = omega.pow(&[idx as u64]);
@@ -50,7 +51,7 @@ fn test_compute_w2() {
 #[test]
 fn test_compute_w3() {
     let inter = Intermediate::random();
-    let w3 = inter.compute_w3();
+    let w3 = Intermediate::<Bls12_381>::compute_w3(&inter.polys);
     let omega = BLSScalarField::get_root_of_unity(inter.domain.size).unwrap();
     for idx in 0..inter.domain.size {
         let point = omega.pow(&[idx as u64]);
@@ -63,7 +64,7 @@ fn test_compute_w3() {
 fn test_compute_v() {
     let inter = Intermediate::random();
     for idx in 1..inter.polys.len() - 1 {
-        let v = inter.compute_v(idx);
+        let v = Intermediate::<Bls12_381>::compute_v(&inter.polys, idx);
         let omega = BLSScalarField::get_root_of_unity(inter.domain.size).unwrap();
         for idx in 0..inter.domain.size {
             let point = omega.pow(&[idx as u64]);

@@ -1,13 +1,13 @@
 use ark_bls12_381::Bls12_381;
-use ark_ec::{pairing::Pairing, AffineRepr};
+use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::VerifierKey;
 use ark_std::{rand::RngCore, One, Zero};
 use ark_ff::Field;
 
-use crate::utils::{batch_check, calculate_hash, BatchCheckProof, HashBox};
+use crate::utils::{batch_check, BatchCheckProof};
 
-use super::prover::IntermediateProof;
+use super::prover::intermediate::IntermediateProof;
 
 type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
@@ -18,13 +18,11 @@ pub struct Verifier {
 impl Verifier {
     pub fn validate_intermediate_proof<R: RngCore>(
         vk: &VerifierKey<Bls12_381>,
-        proof: IntermediateProof,
+        proof: IntermediateProof<Bls12_381, DensePolynomial<BlsScalarField>>,
+        tau: BlsScalarField,
         gamma: BlsScalarField,
         rng: &mut R,
     ) {
-        let hash_boxes: Vec<HashBox> = proof.cms.clone().into_iter().map(| cm | HashBox::Bls(cm.0.into_group())).collect();
-        let tau = BlsScalarField::from(calculate_hash(&hash_boxes));
-
         let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
         let x_minus_last_omega = DensePolynomial::<BlsScalarField>::from_coefficients_vec(vec![-last, BlsScalarField::one()]);
 

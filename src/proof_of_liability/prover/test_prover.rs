@@ -1,8 +1,9 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_std::{rand::distributions::Uniform, test_rng, UniformRand};
+use ark_poly::EvaluationDomain;
 
-use crate::proof_of_liability::verifier::Verifier;
+use crate::proof_of_liability::{prover::intermediate::Intermediate, verifier::Verifier};
 
 use super::Prover;
 
@@ -25,6 +26,9 @@ fn test_prover() {
     )
     .collect();
     let gamma = BlsScalarField::rand(rng);
-    let inter_proof = prover.construct_intermediate_node(&balances, max_bits, gamma, rng);
-    Verifier::validate_intermediate_proof(&prover.vk, inter_proof, gamma, rng);
+    let inter = Intermediate::<Bls12_381>::new(&balances, max_bits, gamma).unwrap();
+    let (cms, randoms) = inter.compute_commitments(&prover.powers, rng);
+    let tau = inter.domain.sample_element_outside_domain(rng);
+    let proof = inter.generate_proof(&prover.powers, cms, randoms, tau, rng);
+    Verifier::validate_intermediate_proof(&prover.vk, proof, tau, gamma, rng);
 }
