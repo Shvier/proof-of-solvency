@@ -4,8 +4,9 @@ use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::{Commitment, VerifierKey};
-use ark_std::{rand::RngCore, One, Zero};
+use ark_std::{rand::RngCore, test_rng, One, Zero};
 use ark_ff::Field;
+use crossbeam::thread;
 
 use crate::utils::{batch_check, BatchCheckProof};
 
@@ -101,14 +102,21 @@ impl Verifier {
         let elapsed = now.elapsed();
         println!("The committed liability checking passed: {:.2?}", elapsed);
 
-        let mut i = 1usize;
-        for (inter_proof, tau) in proof.intermediate_proofs.into_iter().zip(taus) {
-            let now = Instant::now();
-            println!("Start verifying the intermediate proof {}", i);
-            Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, rng);
-            let elapsed = now.elapsed();
-            println!("The intermediate proof {} checking passed: {:.2?}", i, elapsed);
-            i += 1;
-        }
+        let now = Instant::now();
+        println!("Start verifying the intermediate proofs");
+        thread::scope(| s | {
+            let mut i = 1usize;
+            for (inter_proof, tau) in proof.intermediate_proofs.into_iter().zip(taus) {            
+                s.spawn(move | _ | {
+                    let rng = &mut test_rng();
+                    Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, rng);
+                    println!("The intermediate proof {} checking passed", i);
+                });
+                i += 1;
+            }
+        })
+        .unwrap();
+        let elapsed = now.elapsed();
+        println!("The intermediate proofs are verified: {:.2?}", elapsed);
     }
 }
