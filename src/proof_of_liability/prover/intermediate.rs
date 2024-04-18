@@ -1,11 +1,11 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_ff::{FftField, Field};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, KZG10};
 use ark_std::{rand::RngCore, test_rng, One, Zero};
-use crossbeam::thread;
+use crossbeam::{channel::bounded, thread};
 
 use crate::utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, OpenEval};
 
@@ -19,11 +19,12 @@ pub struct IntermediateProof<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
     randoms: Vec<Randomness<E::ScalarField, P>>,
 }
 
+#[derive(Clone)]
 pub struct Intermediate<E: Pairing> {
     pub domain: Radix2EvaluationDomain<E::ScalarField>,
     pub p0_extra_points: Vec<(E::ScalarField, E::ScalarField)>,
     pub(super) polys: Vec<DensePolynomial<E::ScalarField>>,
-    q_w: DensePolynomial<E::ScalarField>,
+    pub(super) q_w: DensePolynomial<E::ScalarField>,
 }
 
 impl<E: Pairing> Intermediate<E> {
@@ -152,43 +153,42 @@ impl<E: Pairing> Intermediate<E> {
     }
 
     pub fn concurrent_compute_commitments<'a>(
-        this: Mutex<&Self>, 
+        polys: &Vec<DensePolynomial<E::ScalarField>>,
+        q_w: &DensePolynomial<E::ScalarField>,
         powers: &'a Mutex<Powers<'a, E>>,
-    ) -> Arc<Mutex<Vec<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)>>> {
-        let commitments = Arc::new(Mutex::new(Vec::<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)>::new()));
-        
-        let polys = this.lock().unwrap().polys.clone();
-        thread::scope(| s | {
-            let mut handles = vec![];
+    ) -> Vec<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)> {
+        let bound = polys.len();
+        let (tx, rx) = bounded(bound);
 
-            for p in polys {
-                let commitments = commitments.clone();
-                let handle = s.spawn(move | _ | {
+        thread::scope(| s | {
+            let mut i = 0;
+            for p in polys.as_slice() {
+                let tx_clone = tx.clone();
+                s.spawn(move | _ | {   
                     let rng = &mut test_rng();
                     let powers = powers.lock().unwrap();
                     let (cm_p, random_p) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &p, Some(p.degree()), Some(rng)).unwrap();
-                    let mut commitments = commitments.lock().unwrap();
-                    commitments.push((cm_p, random_p));
+                    tx_clone.send((i, cm_p, random_p)).unwrap();
                 });
-                handles.push(handle);
-            }
-
-            for handle in handles {
-                handle.join().unwrap();
+                i += 1;
             }
         })
         .unwrap();
 
-        {
-            let rng = &mut test_rng();
-            let powers = powers.lock().unwrap();
-            let q_w = this.lock().unwrap().q_w.clone();
-            let (cm_q, random_q) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &q_w, Some(q_w.degree()), Some(rng)).unwrap();
-            let mut commitments = commitments.lock().unwrap();
-            commitments.push((cm_q, random_q));
+        drop(tx);
+
+        let mut commitments = vec![None; bound + 1];
+        for (i, cm_p, random_p) in rx {
+            commitments[i] = Some((cm_p, random_p));
         }
+
+        let rng = &mut test_rng();
+        let powers = powers.lock().unwrap();
+        let (cm_q, random_q) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &q_w, Some(q_w.degree()), Some(rng)).unwrap();
+        let last = commitments.last_mut().unwrap();
+        *last = Some((cm_q, random_q));
         
-        commitments
+        commitments.into_iter().map(|x| x.unwrap()).collect()
     }
 
     pub fn generate_proof<R: RngCore>(
