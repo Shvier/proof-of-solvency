@@ -1,8 +1,9 @@
 use std::time::Instant;
+use std::ops::AddAssign;
 
 use ark_bls12_381::Bls12_381;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
-use ark_poly_commit::kzg10::{Commitment, VerifierKey};
+use ark_poly_commit::{kzg10::{Commitment, VerifierKey}, PCCommitment};
 use ark_std::{rand::RngCore, test_rng, One, Zero};
 use ark_ff::Field;
 use crossbeam::thread;
@@ -80,13 +81,18 @@ impl Verifier {
     pub fn validate_liability_proof<R: RngCore>(
         vk: &VerifierKey<Bls12_381>,
         proof: LiabilityProof,
-        sum_comm_p0: Commitment<Bls12_381>,
         taus: &Vec<BlsScalarField>,
         gamma: BlsScalarField,
         rng: &mut R,
     ) {
         let now = Instant::now();
         println!("Start verifying the liablity proof");
+
+        let mut sum_comm_p0: Commitment<ark_ec::bls12::Bls12<ark_bls12_381::Config>> = Commitment::<Bls12_381>::empty();
+        for inter_proof in proof.intermediate_proofs.as_slice() {
+            let comm_p0 = inter_proof.cms[0];
+            sum_comm_p0.add_assign((BlsScalarField::one(), &comm_p0));
+        }
 
         batch_check(&vk, &BatchCheckProof {
             commitments: vec![vec![sum_comm_p0]],

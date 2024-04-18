@@ -1,9 +1,7 @@
-use ark_bls12_381::Bls12_381;
-use ark_poly_commit::{kzg10::Commitment, PCCommitment};
 use ark_std::{rand::{distributions::Uniform, Rng}, test_rng, UniformRand, One};
 use ark_poly::{Polynomial, EvaluationDomain};
 
-use std::ops::{AddAssign, Mul};
+use std::ops::Mul;
 
 use crate::types::BlsScalarField;
 
@@ -33,15 +31,10 @@ fn test_pol() {
         let (inters, comms, rands) = prover.concurrent_run(max_bits, gamma);
         let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
         let (proof, rand_sigma_p0) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
-        let mut sum_comm_p0: Commitment<ark_ec::bls12::Bls12<ark_bls12_381::Config>> = Commitment::<Bls12_381>::empty();
-        for inter_proof in proof.clone().intermediate_proofs {
-            let comm_p0 = inter_proof.cms[0];
-            sum_comm_p0.add_assign((BlsScalarField::one(), &comm_p0));
-        }
         let hiding = rand_sigma_p0.blinding_polynomial.evaluate(&BlsScalarField::one());
         let liability = prover.vk.g.mul(sum_bals) + prover.vk.gamma_g.mul(hiding);
         assert_eq!(liability, proof.sigma_p0_eval.into_committed_value());
-        Verifier::validate_liability_proof(&prover.vk, proof.clone(), sum_comm_p0, &taus, gamma, rng);
+        Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, rng);
     };
 
     /* for loop */
@@ -50,16 +43,11 @@ fn test_pol() {
         let (inters, comms, rands) = prover.run(max_bits, gamma, rng);
         let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
         let (proof, rand_sigma_p0) = prover.generate_proof(&inters, &comms, &rands, &taus, rng);
-        let mut sum_comm_p0: Commitment<ark_ec::bls12::Bls12<ark_bls12_381::Config>> = Commitment::<Bls12_381>::empty();
-        for inter_proof in proof.clone().intermediate_proofs {
-            let comm_p0 = inter_proof.cms[0];
-            sum_comm_p0.add_assign((BlsScalarField::one(), &comm_p0));
-        }
         let hiding = rand_sigma_p0.blinding_polynomial.evaluate(&BlsScalarField::one());
         let liability = prover.vk.g.mul(sum_bals) + prover.vk.gamma_g.mul(hiding);
         assert_eq!(liability, proof.sigma_p0_eval.into_committed_value());
     
-        Verifier::validate_liability_proof(&prover.vk, proof.clone(), sum_comm_p0, &taus, gamma, rng);
+        Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, rng);
     };
 
     println!("====================================");
