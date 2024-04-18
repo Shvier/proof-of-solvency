@@ -8,7 +8,7 @@ use ark_poly_commit::{kzg10::{Commitment, Powers, Randomness, UniversalParams, V
 use ark_std::{rand::RngCore, test_rng, One};
 use crossbeam::{channel::bounded, thread};
 
-use crate::utils::{batch_open, OpenEval};
+use crate::{types::{BlsScalarField, UniPoly_381}, utils::{batch_open, OpenEval}};
 
 use self::intermediate::{Intermediate, IntermediateProof};
 
@@ -20,14 +20,11 @@ mod test_prover;
 
 pub mod intermediate;
 
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
-type UniPoly_381 = DensePolynomial<<Bls12_381 as Pairing>::ScalarField>;
-
 #[derive(Clone)]
 pub struct LiabilityProof {
     pub witness_sigma_p0: <Bls12_381 as Pairing>::G1,
     pub sigma_p0_eval: OpenEval<Bls12_381>,
-    pub intermediate_proofs: Vec<IntermediateProof<Bls12_381, UniPoly_381>>,
+    pub intermediate_proofs: Vec<IntermediateProof<Bls12_381>>,
 }
 
 pub struct Prover<'a> {
@@ -35,7 +32,7 @@ pub struct Prover<'a> {
     pub pp: UniversalParams<Bls12_381>,
     pub powers: Powers<'a, Bls12_381>,
     balances: Vec<Vec<u64>>,
-    group_size: usize,
+    // group_size: usize,
 }
 
 impl Prover<'_> {
@@ -70,7 +67,7 @@ impl Prover<'_> {
             pp,
             powers,
             balances,
-            group_size,
+            // group_size,
         }
     }
 
@@ -163,7 +160,7 @@ impl Prover<'_> {
         let mut sigma_p0 = DensePolynomial::zero();
         let mut rand_sigma_p0 = Randomness::<BlsScalarField, DensePolynomial<BlsScalarField>>::empty();
         
-        let mut proofs = Vec::<IntermediateProof<Bls12_381, UniPoly_381>>::new();
+        let mut proofs = Vec::<IntermediateProof<Bls12_381>>::new();
         let mut i = 0usize;
         for inter in inters {
             let cms = &comms[i];

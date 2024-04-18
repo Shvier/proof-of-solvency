@@ -10,13 +10,13 @@ use crossbeam::{channel::bounded, thread};
 use crate::utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, OpenEval};
 
 #[derive(Clone)]
-pub struct IntermediateProof<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
+pub struct IntermediateProof<E: Pairing> {
     pub proof_at_tau: (E::G1, Vec<OpenEval<E>>, E::ScalarField),
     pub proof_at_tau_omega: (E::G1, Vec<OpenEval<E>>, E::ScalarField),
     pub cms: Vec<Commitment<E>>,
     pub omega: E::ScalarField,
     pub domain: Radix2EvaluationDomain<E::ScalarField>,
-    randoms: Vec<Randomness<E::ScalarField, P>>,
+    // randoms: Vec<Randomness<E::ScalarField, P>>,
 }
 
 #[derive(Clone)]
@@ -198,7 +198,7 @@ impl<E: Pairing> Intermediate<E> {
         randoms: &Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
         tau: E::ScalarField,
         rng: &mut R,
-    ) -> IntermediateProof<E, DensePolynomial<E::ScalarField>> {
+    ) -> IntermediateProof<E> {
         let omega = self.domain.element(1);
         let (h_1, open_evals_1, gamma_1) = batch_open(&powers, &vec![self.polys.as_slice(), vec![self.q_w.clone()].as_slice()].concat(), &randoms, tau, false, rng);
         let (h_2, open_evals_2, gamma_2) = batch_open(&powers, &vec![self.polys.first().unwrap().clone()], &vec![randoms.first().unwrap().clone()], tau * omega, false, rng);
@@ -209,7 +209,7 @@ impl<E: Pairing> Intermediate<E> {
             cms: cms.to_vec(), 
             omega: omega,
             domain: self.domain,
-            randoms: randoms.to_vec(), 
+            // randoms: randoms.to_vec(), 
         }
     }
 }

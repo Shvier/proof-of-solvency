@@ -1,18 +1,15 @@
 use std::time::Instant;
 
 use ark_bls12_381::Bls12_381;
-use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::{Commitment, VerifierKey};
 use ark_std::{rand::RngCore, test_rng, One, Zero};
 use ark_ff::Field;
 use crossbeam::thread;
 
-use crate::utils::{batch_check, BatchCheckProof};
+use crate::{types::BlsScalarField, utils::{batch_check, BatchCheckProof}};
 
 use super::prover::{intermediate::IntermediateProof, LiabilityProof};
-
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
 pub struct Verifier {
 
@@ -21,7 +18,7 @@ pub struct Verifier {
 impl Verifier {
     pub fn validate_intermediate_proof<R: RngCore>(
         vk: &VerifierKey<Bls12_381>,
-        proof: IntermediateProof<Bls12_381, DensePolynomial<BlsScalarField>>,
+        proof: IntermediateProof<Bls12_381>,
         tau: BlsScalarField,
         gamma: BlsScalarField,
         rng: &mut R,

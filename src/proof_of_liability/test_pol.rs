@@ -1,14 +1,13 @@
 use ark_bls12_381::Bls12_381;
-use ark_ec::pairing::Pairing;
 use ark_poly_commit::{kzg10::Commitment, PCCommitment};
 use ark_std::{rand::{distributions::Uniform, Rng}, test_rng, UniformRand, One};
 use ark_poly::{Polynomial, EvaluationDomain};
 
 use std::ops::{AddAssign, Mul};
 
-use super::{prover::Prover, verifier::Verifier};
+use crate::types::BlsScalarField;
 
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
+use super::{prover::Prover, verifier::Verifier};
 
 #[test]
 fn test_pol() {

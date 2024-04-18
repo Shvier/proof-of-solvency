@@ -1,5 +1,4 @@
-use ark_bls12_381::Bls12_381;
-use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_std::{rand::Rng, test_rng, UniformRand, Zero, One};
 use ark_poly::Polynomial;
 use ark_test_curves::secp256k1;
@@ -7,11 +6,9 @@ use num_bigint::{BigUint, RandomBits};
 
 use std::ops::Mul;
 
-use crate::proof_of_assets::verifier::Verifier;
+use crate::{proof_of_assets::verifier::Verifier, types::BlsScalarField};
 
 use super::PoA;
-
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
 #[test]
 fn test_poa() {

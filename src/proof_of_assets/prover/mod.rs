@@ -9,12 +9,9 @@ use num_bigint::BigUint;
 
 use std::{borrow::Borrow, ops::Mul};
 
-use crate::utils::{linear_combine_polys, batch_open, calculate_hash, convert_to_bigints, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox};
+use crate::{types::{BlsScalarField, UniPoly_381}, utils::{batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
 use super::sigma::{SigmaProtocol, SigmaProtocolProof};
-
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
-type UniPoly_381 = DensePolynomial<BlsScalarField>;
 
 #[cfg(test)]
 mod test_prover;

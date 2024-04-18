@@ -8,11 +8,9 @@ use ark_test_curves::secp256k1;
 
 use std::ops::Mul;
 
-use crate::{proof_of_assets::sigma::SigmaProtocol, utils::{batch_check, calculate_hash, BatchCheckProof, HashBox, OpenEval}};
+use crate::{proof_of_assets::sigma::SigmaProtocol, types::BlsScalarField, utils::{batch_check, calculate_hash, BatchCheckProof, HashBox, OpenEval}};
 
 use super::{prover::{AssetsProof, PolyCommitProof}, sigma::SigmaProtocolProof};
-
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
 pub struct Verifier {
 

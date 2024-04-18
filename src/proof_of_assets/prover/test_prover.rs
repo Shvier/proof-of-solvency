@@ -1,16 +1,13 @@
 use ark_bls12_381::{Bls12_381, Fr};
-use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::DenseOrSparsePolynomial, EvaluationDomain, Radix2EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::{Proof, KZG10};
 use ark_std::{rand::Rng, test_rng, UniformRand, Zero};
 use ark_ff::Field;
 use num_bigint::{BigUint, RandomBits};
 
-use crate::proof_of_assets::verifier::Verifier;
+use crate::{proof_of_assets::verifier::Verifier, types::BlsScalarField};
 
 use super::{Prover, UniPoly_381};
-
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
 
 #[test]
 fn test_prover() {

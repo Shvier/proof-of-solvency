@@ -7,9 +7,7 @@ use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10}
 use ark_ff::{FftField, Field};
 use ark_std::{rand::Rng, test_rng, UniformRand};
 
-use crate::utils::{batch_check, batch_open, build_bit_vector, build_up_bits, convert_to_zk_polynomial, BatchCheckProof, OpenEval};
-
-type BlsScalarField = <Bls12_381 as Pairing>::ScalarField;
+use crate::{types::BlsScalarField, utils::{batch_check, batch_open, build_bit_vector, build_up_bits, convert_to_zk_polynomial, BatchCheckProof, OpenEval}};
 
 #[cfg(test)]
 fn compare_vecs(va: &[u64], vb: &[u64]) -> bool {
