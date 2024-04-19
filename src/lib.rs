@@ -5,3 +5,6 @@ pub mod types;
 
 #[cfg(test)]
 mod test_utils;
+
+#[cfg(test)]
+mod bench;

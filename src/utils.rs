@@ -15,7 +15,7 @@ pub enum HashBox {
 }
 
 pub fn build_up_bits(value: u64, max_bits: usize) -> Vec<u64> {
-    assert!(value <= 2_u64.pow(u32::try_from(max_bits).unwrap()));
+    assert!(value <= u64::MAX);
     let mut bits: Vec<u64> = Vec::with_capacity(max_bits);
     for _ in 0..max_bits {
         bits.push(0);
