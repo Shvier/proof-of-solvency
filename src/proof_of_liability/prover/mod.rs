@@ -1,4 +1,4 @@
-use std::{sync::Mutex, time::Instant};
+use std::{sync::{Arc, Mutex}, time::Instant};
 
 use ark_ec::pairing::Pairing;
 use ark_ff::Zero;
@@ -97,19 +97,20 @@ impl Prover<'_> {
         let now = Instant::now();
         println!("Start building the intermediate polynomials");
         
-        let balances = self.balances.clone();
-        let bound = balances.len();
+        let bound = self.balances.len();
         let (tx, rx) = bounded(bound);
+        let binding = Mutex::new(self.powers.clone());
+        let powers = Arc::new(&binding);
 
         thread::scope(| s | {
             let mut i = 0;
-            for bals in balances.as_slice() {
+            for bals in self.balances.as_slice() {
                 let tx_clone = tx.clone();
-                let powers = self.powers.clone();
+                let powers = powers.clone();
                 s.spawn(move | _ | {
                     let rng = &mut test_rng();
                     let inter = Intermediate::<Bls12_381>::new(bals, max_bits, gamma, rng);
-                    let commitments = Intermediate::<Bls12_381>::concurrent_compute_commitments(&inter.polys, &inter.q_w, &Mutex::new(powers));
+                    let commitments = Intermediate::<Bls12_381>::concurrent_compute_commitments(&inter.polys, &inter.q_w, powers);
                     tx_clone.send((i, inter, commitments)).unwrap();
                 });
                 i += 1;
@@ -213,11 +214,10 @@ impl Prover<'_> {
                 let cms = &comms[i];
                 let randoms = &rands[i];
                 let tau = taus[i];
-                let powers = self.powers.clone();
                 let tx_clone = tx.clone();
                 s.spawn(move | _ | {
                     let rng = &mut test_rng();
-                    let proof = inter.generate_proof(&powers, cms, randoms, tau, rng);
+                    let proof = inter.generate_proof(&self.powers, cms, randoms, tau, rng);
                     tx_clone.send((i, proof)).unwrap();
                 });
                 i += 1;
@@ -239,11 +239,13 @@ impl Prover<'_> {
         let elapsed = now.elapsed();
         println!("Liability proof is generated: {:.2?}", elapsed);
 
-        (LiabilityProof {
-            witness_sigma_p0: h_sigma_p0,
-            sigma_p0_eval: sigma_p0_eval[0].clone(),
-            intermediate_proofs: proofs,
-        },
-        rand_sigma_p0.clone())
+        (
+            LiabilityProof {
+                witness_sigma_p0: h_sigma_p0,
+                sigma_p0_eval: sigma_p0_eval[0].clone(),
+                intermediate_proofs: proofs,
+            },
+            rand_sigma_p0.clone()
+        )
     }
 }

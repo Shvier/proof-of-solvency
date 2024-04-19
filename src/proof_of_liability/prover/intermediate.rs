@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
@@ -155,7 +155,7 @@ impl<E: Pairing> Intermediate<E> {
     pub fn concurrent_compute_commitments<'a>(
         polys: &Vec<DensePolynomial<E::ScalarField>>,
         q_w: &DensePolynomial<E::ScalarField>,
-        powers: &'a Mutex<Powers<'a, E>>,
+        powers: Arc<&'a Mutex<Powers<'a, E>>>,
     ) -> Vec<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)> {
         let bound = polys.len();
         let (tx, rx) = bounded(bound);
@@ -164,6 +164,7 @@ impl<E: Pairing> Intermediate<E> {
             let mut i = 0;
             for p in polys.as_slice() {
                 let tx_clone = tx.clone();
+                let powers = powers.clone();
                 s.spawn(move | _ | {   
                     let rng = &mut test_rng();
                     let powers = powers.lock().unwrap();
