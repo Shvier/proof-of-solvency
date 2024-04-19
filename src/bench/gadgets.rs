@@ -24,7 +24,7 @@ fn generate_balances() {
 fn generate_config() {
     let configs = vec![
         BenchConfig {
-            num_of_users: 2u32.pow(20),
+            num_of_users: 2usize.pow(20),
             num_of_bits: 64,
             num_of_groups: 1024,
         },

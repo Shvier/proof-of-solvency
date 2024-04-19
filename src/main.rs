@@ -1,19 +1,78 @@
-use std::{fs::File, io::{Read, Write}};
+use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of_val, time::{Duration, Instant}};
+
+use ark_std::{UniformRand, test_rng};
+use ark_poly::domain::EvaluationDomain;
+
+use proof_of_solvency::{bench::{BenchConfig, PoLReport}, proof_of_liability::{prover::Prover, verifier::Verifier}, types::BlsScalarField};
 
 fn main() {
-    let mut file = File::open("pol_data").expect("");
-    let mut buffer = Vec::<u8>::new();
-    let res = file.read_to_end(&mut buffer);
-    println!("size: {}", res.unwrap());
+    run_pol();
 }
 
-fn to_disk(path: &str, data: &Vec<u8>) {
-    unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
-        ::core::slice::from_raw_parts(
-            (p as *const T) as *const u8,
-            ::core::mem::size_of::<T>(),
-        )
+fn run_pol() {
+    let (configs, balances) = read_config();
+    for config in configs {
+        let dir = format!("./bench_data/{}users", config.num_of_users);
+        let _ = fs::create_dir(dir.clone());
+        let bals = balances[0..config.num_of_users].to_vec();
+        let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
+        let report = PoLReport {
+            interpolation_time: format!("{:.2?}", time1),
+            proving_time: format!("{:.2?}", time2),
+            verifying_time: format!("{:.2?}", time3),
+            proof_size: format!("{}bytes", proof_size),
+        };
+        let json_path = dir.clone() + &format!("/{}bits_{}groups.json", config.num_of_bits, config.num_of_groups);
+        let file = File::create(json_path).unwrap();
+        let mut writer = BufWriter::new(file);
+        serde_json::to_writer(&mut writer, &report).unwrap();
+        writer.flush().unwrap();
     }
-    let mut fs = File::create(path).expect("failed to create pol");
-    fs.write_all(unsafe { &any_as_u8_slice(data) }).expect("failed to write pol");
 }
+
+fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Duration, Duration) {
+    let group_size: usize = config.num_of_users / config.num_of_groups;
+    let max_degree = group_size * 2;
+    let prover = Prover::setup(&balances, group_size, max_degree);
+    let rng = &mut test_rng();
+    let gamma = BlsScalarField::rand(rng);
+    let now = Instant::now();
+    let (inters, comms, rands) = prover.concurrent_run(config.num_of_bits, gamma);
+    let elapsed1 = now.elapsed();
+    let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
+    let now = Instant::now();
+    let (proof, _) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
+    let proof_size = size_of_val(&proof);
+    let elapsed2 = now.elapsed();
+    let now = Instant::now();
+    Verifier::validate_liability_proof(&prover.vk, proof, &taus, gamma, rng);
+    let elapsed3 = now.elapsed();
+    (proof_size, elapsed1, elapsed2, elapsed3)
+}
+
+fn read_config() -> (Vec<BenchConfig>, Vec<u64>) {
+    let mut file = File::open("./bench_data/config.json").unwrap();
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer).unwrap();
+    let configs: Vec<BenchConfig> = serde_json::from_str(&buffer).unwrap();
+
+    let file = File::open("./bench_data/balance.csv").unwrap();
+    let mut reader = csv::Reader::from_reader(file);
+    let mut balances = Vec::<u64>::new();
+    for result in reader.deserialize() {
+        let record: u64 = result.unwrap();
+        balances.push(record);
+    }
+    (configs, balances)
+}
+
+// fn to_disk<T: Sized>(path: &str, data: &T) {
+//     unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
+//         ::core::slice::from_raw_parts(
+//             (p as *const T) as *const u8,
+//             ::core::mem::size_of::<T>(),
+//         )
+//     }
+//     let mut fs = File::create(path).expect("failed to create pol");
+//     fs.write_all(unsafe { &any_as_u8_slice(data) }).expect("failed to write pol");
+// }

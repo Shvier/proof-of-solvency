@@ -2,9 +2,7 @@ pub mod proof_of_liability;
 pub mod proof_of_assets;
 pub mod utils;
 pub mod types;
+pub mod bench;
 
 #[cfg(test)]
 mod test_utils;
-
-#[cfg(test)]
-mod bench;

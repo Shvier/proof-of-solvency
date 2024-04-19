@@ -16,3 +16,5 @@ Cargo.lock
 .vscode
 bench_data/balance.csv
 bench_data/config.json
+bench_data/*
+!bench_data/.gitkeep
