@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, time::Instant};
+use std::{mem::size_of, sync::{Arc, Mutex}, time::Instant};
 
 use ark_ec::pairing::Pairing;
 use ark_ff::Zero;
@@ -25,6 +25,15 @@ pub struct LiabilityProof {
     pub witness_sigma_p0: <Bls12_381 as Pairing>::G1,
     pub sigma_p0_eval: OpenEval<Bls12_381>,
     pub intermediate_proofs: Vec<IntermediateProof<Bls12_381>>,
+}
+
+impl LiabilityProof {
+    pub fn deep_size(&self) -> usize {
+        let size_of_proofs: usize = self.intermediate_proofs.iter().map(| child | child.deep_size()).sum();
+        size_of::<<Bls12_381 as Pairing>::G1>() + 
+        size_of::<OpenEval<Bls12_381>>() +
+        size_of_proofs
+    }
 }
 
 pub struct Prover<'a> {

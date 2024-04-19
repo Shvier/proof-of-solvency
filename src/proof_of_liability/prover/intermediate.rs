@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::{mem::size_of, sync::{Arc, Mutex}};
 
 use ark_ec::pairing::Pairing;
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
@@ -17,6 +17,14 @@ pub struct IntermediateProof<E: Pairing> {
     pub omega: E::ScalarField,
     pub domain: Radix2EvaluationDomain<E::ScalarField>,
     // randoms: Vec<Randomness<E::ScalarField, P>>,
+}
+
+impl<E: Pairing> IntermediateProof<E> {
+    pub fn deep_size(&self) -> usize {
+        size_of::<E::G1>() * 2 + size_of::<OpenEval<E>>() * (self.proof_at_tau.1.len() + self.proof_at_tau_omega.1.len()) + size_of::<E::ScalarField>() * 3 +
+        size_of::<Commitment<E>>() * self.cms.len() +
+        size_of::<Radix2EvaluationDomain<E::ScalarField>>()
+    }
 }
 
 #[derive(Clone)]

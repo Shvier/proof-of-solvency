@@ -1,4 +1,4 @@
-use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of_val, time::{Duration, Instant}};
+use std::{fs::{self, File}, io::{BufWriter, Read, Write}, time::{Duration, Instant}};
 
 use ark_std::{UniformRand, test_rng};
 use ark_poly::domain::EvaluationDomain;
@@ -42,7 +42,7 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
     let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
     let now = Instant::now();
     let (proof, _) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
-    let proof_size = size_of_val(&proof);
+    let proof_size = proof.deep_size();
     let elapsed2 = now.elapsed();
     let now = Instant::now();
     Verifier::validate_liability_proof(&prover.vk, proof, &taus, gamma, rng);
