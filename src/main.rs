@@ -17,10 +17,10 @@ fn run_pol() {
         let bals = balances[0..config.num_of_users].to_vec();
         let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
         let report = PoLReport {
-            interpolation_time: format!("{:.2?}", time1),
-            proving_time: format!("{:.2?}", time2),
-            verifying_time: format!("{:.2?}", time3),
-            proof_size: format!("{}bytes", proof_size),
+            interpolation_time: format!("{:.2?}", time1.as_secs_f64()),
+            proving_time: format!("{:.2?}", time2.as_secs_f64()),
+            verifying_time: format!("{:.2?}", time3.as_secs_f64()),
+            proof_size: format!("{}", proof_size/1000),
         };
         let json_path = dir.clone() + &format!("/{}.json", chrono::offset::Local::now());
         let file = File::create(json_path).unwrap();
