@@ -12,8 +12,8 @@ fn main() {
 fn run_pol() {
     let (configs, balances) = read_config();
     for config in configs {
-        let dir = format!("./bench_data/{}users", config.num_of_users);
-        let _ = fs::create_dir(dir.clone());
+        let dir = format!("./bench_data/{}users/{}bits/{}groups", config.num_of_users, config.num_of_bits, config.num_of_groups);
+        let _ = fs::create_dir_all(dir.clone());
         let bals = balances[0..config.num_of_users].to_vec();
         let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
         let report = PoLReport {
@@ -22,7 +22,7 @@ fn run_pol() {
             verifying_time: format!("{:.2?}", time3),
             proof_size: format!("{}bytes", proof_size),
         };
-        let json_path = dir.clone() + &format!("/{}bits_{}groups.json", config.num_of_bits, config.num_of_groups);
+        let json_path = dir.clone() + &format!("/{}.json", chrono::offset::Local::now());
         let file = File::create(json_path).unwrap();
         let mut writer = BufWriter::new(file);
         serde_json::to_writer(&mut writer, &report).unwrap();
