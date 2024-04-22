@@ -27,22 +27,22 @@ fn generate_balances() {
 
 #[test]
 fn generate_config() {
-    let power = 17;
+    let power = 18;
     let configs = vec![
         BenchConfig {
             num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 64,
+            num_of_groups: 2048,
         },
         BenchConfig {
             num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 32,
+            num_of_groups: 512,
         },
         BenchConfig {
             num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 16,
+            num_of_groups: 128,
         },
         BenchConfig {
             num_of_users: 2usize.pow(power),
@@ -52,17 +52,7 @@ fn generate_config() {
         BenchConfig {
             num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 4,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(power),
-            num_of_bits: 64,
             num_of_groups: 2,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(power),
-            num_of_bits: 64,
-            num_of_groups: 1,
         },
     ];
     let file = File::create("./bench_data/config.json").expect("Failed to create config json file");
@@ -82,7 +72,7 @@ fn generate_csv_report() {
         prefix,
         records,
     );
-    println!("{:?}", records);
+    records.sort_by(|a, b| a.num_of_groups.cmp(&b.num_of_groups));
     let path = "./bench_data/report.csv";
     let mut wtr = Writer::from_path(path).expect("Failed to create file");
     for record in records {
