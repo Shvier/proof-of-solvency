@@ -1,9 +1,17 @@
-use std::{fs::{self, File}, io::{BufWriter, Read, Write}, time::{Duration, Instant}};
+use std::{
+    fs::{self, File},
+    io::{BufWriter, Read, Write},
+    time::{Duration, Instant},
+};
 
-use ark_std::{UniformRand, test_rng};
 use ark_poly::domain::EvaluationDomain;
+use ark_std::{test_rng, UniformRand};
 
-use proof_of_solvency::{bench::{BenchConfig, PoLReport}, proof_of_liability::{prover::Prover, verifier::Verifier}, types::BlsScalarField};
+use proof_of_solvency::{
+    bench::{BenchConfig, PoLReport},
+    proof_of_liability::{prover::Prover, verifier::Verifier},
+    types::BlsScalarField,
+};
 
 fn main() {
     run_pol();
@@ -12,7 +20,10 @@ fn main() {
 fn run_pol() {
     let (configs, balances) = read_config();
     for config in configs {
-        let dir = format!("./bench_data/{}users/{}bits/{}groups", config.num_of_users, config.num_of_bits, config.num_of_groups);
+        let dir = format!(
+            "./bench_data/{}users/{}bits/{}groups",
+            config.num_of_users, config.num_of_bits, config.num_of_groups
+        );
         let _ = fs::create_dir_all(dir.clone());
         let bals = balances[0..config.num_of_users].to_vec();
         let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
@@ -20,9 +31,10 @@ fn run_pol() {
             interpolation_time: format!("{:.2?}", time1.as_secs_f64()),
             proving_time: format!("{:.2?}", time2.as_secs_f64()),
             verifying_time: format!("{:.2?}", time3.as_secs_f64()),
-            proof_size: format!("{}", proof_size/1000),
+            proof_size: format!("{}", proof_size / 1000),
         };
-        let json_path = dir.clone() + &format!("/{}.json", chrono::offset::Local::now());
+        let json_path =
+            dir.clone() + &format!("/{}.json", chrono::offset::Local::now()).replace(":", "-");
         let file = File::create(json_path).unwrap();
         let mut writer = BufWriter::new(file);
         serde_json::to_writer(&mut writer, &report).unwrap();
@@ -39,7 +51,10 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
     let now = Instant::now();
     let (inters, comms, rands) = prover.concurrent_run(config.num_of_bits, gamma);
     let elapsed1 = now.elapsed();
-    let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
+    let taus = inters
+        .iter()
+        .map(|inter| inter.domain.sample_element_outside_domain(rng))
+        .collect();
     let now = Instant::now();
     let (proof, _) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
     let proof_size = proof.deep_size();
