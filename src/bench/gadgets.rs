@@ -27,41 +27,42 @@ fn generate_balances() {
 
 #[test]
 fn generate_config() {
+    let power = 17;
     let configs = vec![
         BenchConfig {
-            num_of_users: 2usize.pow(10),
+            num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 1,
+            num_of_groups: 64,
         },
         BenchConfig {
-            num_of_users: 2usize.pow(10),
-            num_of_bits: 64,
-            num_of_groups: 2,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(10),
-            num_of_bits: 64,
-            num_of_groups: 4,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(10),
-            num_of_bits: 64,
-            num_of_groups: 8,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(10),
-            num_of_bits: 64,
-            num_of_groups: 16,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(10),
+            num_of_users: 2usize.pow(power),
             num_of_bits: 64,
             num_of_groups: 32,
         },
         BenchConfig {
-            num_of_users: 2usize.pow(10),
+            num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 64,
+            num_of_groups: 16,
+        },
+        BenchConfig {
+            num_of_users: 2usize.pow(power),
+            num_of_bits: 64,
+            num_of_groups: 8,
+        },
+        BenchConfig {
+            num_of_users: 2usize.pow(power),
+            num_of_bits: 64,
+            num_of_groups: 4,
+        },
+        BenchConfig {
+            num_of_users: 2usize.pow(power),
+            num_of_bits: 64,
+            num_of_groups: 2,
+        },
+        BenchConfig {
+            num_of_users: 2usize.pow(power),
+            num_of_bits: 64,
+            num_of_groups: 1,
         },
     ];
     let file = File::create("./bench_data/config.json").expect("Failed to create config json file");
