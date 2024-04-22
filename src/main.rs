@@ -7,6 +7,7 @@ use std::{
 use ark_poly::domain::EvaluationDomain;
 use ark_std::{test_rng, UniformRand};
 
+use csv::ReaderBuilder;
 use proof_of_solvency::{
     bench::{BenchConfig, PoLReport},
     proof_of_liability::{prover::Prover, verifier::Verifier},
@@ -72,7 +73,7 @@ fn read_config() -> (Vec<BenchConfig>, Vec<u64>) {
     let configs: Vec<BenchConfig> = serde_json::from_str(&buffer).unwrap();
 
     let file = File::open("./bench_data/balance.csv").unwrap();
-    let mut reader = csv::Reader::from_reader(file);
+    let mut reader = ReaderBuilder::new().has_headers(false).from_reader(file);
     let mut balances = Vec::<u64>::new();
     for result in reader.deserialize() {
         let record: u64 = result.unwrap();
