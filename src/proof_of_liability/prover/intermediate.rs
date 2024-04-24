@@ -1,13 +1,23 @@
-use std::{mem::size_of, sync::{Arc, Mutex}};
+use std::{
+    mem::size_of,
+    sync::{Arc, Mutex},
+    thread,
+};
 
 use ark_ec::pairing::Pairing;
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_ff::{FftField, Field};
+use ark_poly::{
+    univariate::{DenseOrSparsePolynomial, DensePolynomial},
+    DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain,
+};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, KZG10};
 use ark_std::{rand::RngCore, test_rng, One, Zero};
-use crossbeam::{channel::bounded, thread};
+use crossbeam::channel::bounded;
 
-use crate::utils::{batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial, incremental_interpolate, interpolate_poly, linear_combine_polys, OpenEval};
+use crate::utils::{
+    batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial,
+    incremental_interpolate, interpolate_poly, linear_combine_polys, OpenEval,
+};
 
 #[derive(Clone)]
 pub struct IntermediateProof<E: Pairing> {
@@ -21,9 +31,12 @@ pub struct IntermediateProof<E: Pairing> {
 
 impl<E: Pairing> IntermediateProof<E> {
     pub fn deep_size(&self) -> usize {
-        size_of::<E::G1>() * 2 + size_of::<OpenEval<E>>() * (self.proof_at_tau.1.len() + self.proof_at_tau_omega.1.len()) + size_of::<E::ScalarField>() * 3 +
-        size_of::<Commitment<E>>() * self.cms.len() +
-        size_of::<Radix2EvaluationDomain<E::ScalarField>>()
+        size_of::<E::G1>() * 2
+            + size_of::<OpenEval<E>>()
+                * (self.proof_at_tau.1.len() + self.proof_at_tau_omega.1.len())
+            + size_of::<E::ScalarField>() * 3
+            + size_of::<Commitment<E>>() * self.cms.len()
+            + size_of::<Radix2EvaluationDomain<E::ScalarField>>()
     }
 }
 
@@ -46,7 +59,8 @@ impl<E: Pairing> Intermediate<E> {
         let accumulator = compute_accumulative_vector::<E::ScalarField>(&balances);
 
         let domain_size = balances.len().checked_next_power_of_two().unwrap();
-        let domain = Radix2EvaluationDomain::<E::ScalarField>::new(domain_size).expect("Unsupported domain length");
+        let domain = Radix2EvaluationDomain::<E::ScalarField>::new(domain_size)
+            .expect("Unsupported domain length");
 
         let mut polys = Vec::<DensePolynomial<E::ScalarField>>::new();
 
@@ -70,7 +84,9 @@ impl<E: Pairing> Intermediate<E> {
         }
         let w = linear_combine_polys::<E>(&combined_polys, gamma);
         let zed = DenseOrSparsePolynomial::from(domain.vanishing_polynomial());
-        let (q_w, r) = DenseOrSparsePolynomial::from(w).divide_with_q_and_r(&zed).unwrap();
+        let (q_w, r) = DenseOrSparsePolynomial::from(w)
+            .divide_with_q_and_r(&zed)
+            .unwrap();
         assert!(r.is_zero());
 
         Self {
@@ -81,55 +97,80 @@ impl<E: Pairing> Intermediate<E> {
         }
     }
 
-    pub(super) fn compute_w1(polys: &Vec<DensePolynomial<E::ScalarField>>, domain: Radix2EvaluationDomain<E::ScalarField>, extra_points: &Vec<(E::ScalarField, E::ScalarField)>) -> DensePolynomial<E::ScalarField> {
+    pub(super) fn compute_w1(
+        polys: &Vec<DensePolynomial<E::ScalarField>>,
+        domain: Radix2EvaluationDomain<E::ScalarField>,
+        extra_points: &Vec<(E::ScalarField, E::ScalarField)>,
+    ) -> DensePolynomial<E::ScalarField> {
         let domain_size = domain.size;
-        let omega = E::ScalarField::get_root_of_unity(domain_size).expect("Unsupported domain size");
+        let omega =
+            E::ScalarField::get_root_of_unity(domain_size).expect("Unsupported domain size");
 
         let p0 = &polys[0];
         let mut p0_evals = p0.clone().evaluate_over_domain(domain).evals;
         p0_evals.rotate_left(1);
         let p0_plus_1 = Evaluations::from_vec_and_domain(p0_evals, domain).interpolate();
 
-        let points = extra_points.into_iter().map(| (x, y) | { (*x / omega, *y) }).collect();
+        let points = extra_points
+            .into_iter()
+            .map(|(x, y)| (*x / omega, *y))
+            .collect();
         let p0_plus_1 = incremental_interpolate(&p0_plus_1, domain, &points);
         let p1 = &polys[1];
-        let x_minus_last_omega = DensePolynomial::<E::ScalarField>::from_coefficients_vec([-omega.pow(&[domain_size - 1]), E::ScalarField::one()].to_vec());
+        let x_minus_last_omega = DensePolynomial::<E::ScalarField>::from_coefficients_vec(
+            [-omega.pow(&[domain_size - 1]), E::ScalarField::one()].to_vec(),
+        );
         let mut w1 = p0 - &p0_plus_1;
         w1 = &w1 - p1;
         w1 = &w1 * &x_minus_last_omega;
         w1
     }
 
-    pub(super) fn compute_w2(polys: &Vec<DensePolynomial<E::ScalarField>>, domain: Radix2EvaluationDomain<E::ScalarField>) -> DensePolynomial<E::ScalarField> {
+    pub(super) fn compute_w2(
+        polys: &Vec<DensePolynomial<E::ScalarField>>,
+        domain: Radix2EvaluationDomain<E::ScalarField>,
+    ) -> DensePolynomial<E::ScalarField> {
         let p0 = &polys[0];
         let p1 = &polys[1];
         let mut w2 = p0 - p1;
         let domain_size = domain.size;
-        let omega = E::ScalarField::get_root_of_unity(domain_size).expect("Unsupported domain size");
+        let omega =
+            E::ScalarField::get_root_of_unity(domain_size).expect("Unsupported domain size");
         for idx in 0..domain_size - 1 {
             let point = omega.pow(&[idx]);
-            let linear_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec([-point, E::ScalarField::one()].to_vec());
+            let linear_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec(
+                [-point, E::ScalarField::one()].to_vec(),
+            );
             w2 = &w2 * &linear_term;
         }
         w2
     }
 
-    pub(super) fn compute_w3(polys: &Vec<DensePolynomial<E::ScalarField>>) -> DensePolynomial<E::ScalarField> {
+    pub(super) fn compute_w3(
+        polys: &Vec<DensePolynomial<E::ScalarField>>,
+    ) -> DensePolynomial<E::ScalarField> {
         let len = polys.len();
         let pm = &polys[len - 1];
-        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec([E::ScalarField::one()].to_vec());
+        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec(
+            [E::ScalarField::one()].to_vec(),
+        );
         let mut w3 = pm - &constant_term;
         w3 = &w3 * pm;
         w3
     }
 
-    pub(super) fn compute_v(polys: &Vec<DensePolynomial<E::ScalarField>>, idx: usize) -> DensePolynomial<E::ScalarField> {
+    pub(super) fn compute_v(
+        polys: &Vec<DensePolynomial<E::ScalarField>>,
+        idx: usize,
+    ) -> DensePolynomial<E::ScalarField> {
         assert!(idx > 0 && idx < polys.len() - 1);
         let cur = &polys[idx];
         let next = &polys[idx + 1];
         let next_double = next + next;
         let zero_term = cur - &next_double;
-        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec([E::ScalarField::one()].to_vec());
+        let constant_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec(
+            [E::ScalarField::one()].to_vec(),
+        );
         let one_term = &constant_term - &zero_term;
         let v = &zero_term * &one_term;
         v
@@ -140,12 +181,27 @@ impl<E: Pairing> Intermediate<E> {
         powers: &Powers<E>,
         poly: &DensePolynomial<E::ScalarField>,
         rng: &mut R,
-    ) -> (Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>) {
-        KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &poly, Some(poly.degree()), Some(rng)).unwrap()
+    ) -> (
+        Commitment<E>,
+        Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>,
+    ) {
+        KZG10::<E, DensePolynomial<E::ScalarField>>::commit(
+            &powers,
+            &poly,
+            Some(poly.degree()),
+            Some(rng),
+        )
+        .unwrap()
     }
 
-    pub fn compute_commitments<R: RngCore>(&self, powers: &Powers<E>, rng: &mut R) 
-        -> (Vec<Commitment<E>>, Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>) {
+    pub fn compute_commitments<R: RngCore>(
+        &self,
+        powers: &Powers<E>,
+        rng: &mut R,
+    ) -> (
+        Vec<Commitment<E>>,
+        Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
+    ) {
         let mut cms = Vec::<Commitment<E>>::new();
         let mut randoms = Vec::<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>::new();
         for p in &self.polys {
@@ -164,25 +220,33 @@ impl<E: Pairing> Intermediate<E> {
         polys: &Vec<DensePolynomial<E::ScalarField>>,
         q_w: &DensePolynomial<E::ScalarField>,
         powers: Arc<&'a Mutex<Powers<'a, E>>>,
-    ) -> Vec<(Commitment<E>, Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)> {
+    ) -> Vec<(
+        Commitment<E>,
+        Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>,
+    )> {
         let bound = polys.len();
         let (tx, rx) = bounded(bound);
 
-        thread::scope(| s | {
+        thread::scope(|s| {
             let mut i = 0;
             for p in polys.as_slice() {
                 let tx_clone = tx.clone();
                 let powers = powers.clone();
-                s.spawn(move | _ | {   
+                s.spawn(move || {
                     let rng = &mut test_rng();
                     let powers = powers.lock().unwrap();
-                    let (cm_p, random_p) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &p, Some(p.degree()), Some(rng)).unwrap();
+                    let (cm_p, random_p) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(
+                        &powers,
+                        &p,
+                        Some(p.degree()),
+                        Some(rng),
+                    )
+                    .unwrap();
                     tx_clone.send((i, cm_p, random_p)).unwrap();
                 });
                 i += 1;
             }
-        })
-        .unwrap();
+        });
 
         drop(tx);
 
@@ -193,10 +257,16 @@ impl<E: Pairing> Intermediate<E> {
 
         let rng = &mut test_rng();
         let powers = powers.lock().unwrap();
-        let (cm_q, random_q) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(&powers, &q_w, Some(q_w.degree()), Some(rng)).unwrap();
+        let (cm_q, random_q) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(
+            &powers,
+            &q_w,
+            Some(q_w.degree()),
+            Some(rng),
+        )
+        .unwrap();
         let last = commitments.last_mut().unwrap();
         *last = Some((cm_q, random_q));
-        
+
         commitments.into_iter().map(|x| x.unwrap()).collect()
     }
 
@@ -209,16 +279,30 @@ impl<E: Pairing> Intermediate<E> {
         rng: &mut R,
     ) -> IntermediateProof<E> {
         let omega = self.domain.element(1);
-        let (h_1, open_evals_1, gamma_1) = batch_open(&powers, &vec![self.polys.as_slice(), vec![self.q_w.clone()].as_slice()].concat(), &randoms, tau, false, rng);
-        let (h_2, open_evals_2, gamma_2) = batch_open(&powers, &vec![self.polys.first().unwrap().clone()], &vec![randoms.first().unwrap().clone()], tau * omega, false, rng);
+        let (h_1, open_evals_1, gamma_1) = batch_open(
+            &powers,
+            &vec![self.polys.as_slice(), vec![self.q_w.clone()].as_slice()].concat(),
+            &randoms,
+            tau,
+            false,
+            rng,
+        );
+        let (h_2, open_evals_2, gamma_2) = batch_open(
+            &powers,
+            &vec![self.polys.first().unwrap().clone()],
+            &vec![randoms.first().unwrap().clone()],
+            tau * omega,
+            false,
+            rng,
+        );
 
-        IntermediateProof { 
-            proof_at_tau: (h_1, open_evals_1, gamma_1), 
-            proof_at_tau_omega: (h_2, open_evals_2, gamma_2), 
-            cms: cms.to_vec(), 
+        IntermediateProof {
+            proof_at_tau: (h_1, open_evals_1, gamma_1),
+            proof_at_tau_omega: (h_2, open_evals_2, gamma_2),
+            cms: cms.to_vec(),
             omega: omega,
             domain: self.domain,
-            // randoms: randoms.to_vec(), 
+            // randoms: randoms.to_vec(),
         }
     }
 }
