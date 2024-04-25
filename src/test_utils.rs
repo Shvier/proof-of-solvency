@@ -84,7 +84,7 @@ fn test_batch_check() {
         let point = omega.pow(&[power]);
         open_points.push(point);
         let (witness, open_evals, gamma) = 
-            batch_open(&powers, &polys, &randoms, point, perfect_hiding, rng);
+            batch_open(&powers, &polys.iter().collect(), &randoms.iter().collect(), point, perfect_hiding, rng);
         witnesses.push(witness);
         evals.push(open_evals);
         gammas.push(gamma);
@@ -95,7 +95,7 @@ fn test_batch_check() {
     let point = omega.pow(&[power]);
     open_points.push(point);
     let (witness, open_evals, gamma) = 
-        batch_open(&powers, &[polys[1].clone()].to_vec(), &[randoms[1].clone()].to_vec(), point, perfect_hiding, rng);
+        batch_open(&powers, &[&polys[1]].to_vec(), &[&randoms[1]].to_vec(), point, perfect_hiding, rng);
     witnesses.push(witness);
     evals.push(open_evals);
     gammas.push(gamma);

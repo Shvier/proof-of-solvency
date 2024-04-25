@@ -13,7 +13,7 @@ use ark_poly_commit::{
     kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10},
     PCRandomness,
 };
-use ark_std::{rand::RngCore, test_rng, One};
+use ark_std::{iterable::Iterable, rand::RngCore, test_rng, One};
 use crossbeam::channel::bounded;
 
 use crate::{
@@ -187,7 +187,7 @@ impl Prover<'_> {
         &self,
         inters: &Vec<Intermediate<Bls12_381>>,
         comms: &Vec<Vec<Commitment<Bls12_381>>>,
-        rands: &Vec<Vec<Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>,
+        rands: &Vec<Vec<&Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>,
         taus: &Vec<BlsScalarField>,
         rng: &mut R,
     ) -> (LiabilityProof, Randomness<BlsScalarField, UniPoly_381>) {
@@ -206,15 +206,15 @@ impl Prover<'_> {
             let proof = inter.generate_proof(&self.powers, cms, randoms, tau, rng);
             proofs.push(proof);
             sigma_p0 = &sigma_p0 + &inter.polys[0];
-            rand_sigma_p0 = rand_sigma_p0 + &randoms[0];
+            rand_sigma_p0 = rand_sigma_p0 + randoms[0];
 
             i += 1;
         }
 
         let (h_sigma_p0, sigma_p0_eval, _) = batch_open(
             &self.powers,
-            &vec![sigma_p0],
-            &vec![rand_sigma_p0.clone()],
+            &vec![&sigma_p0],
+            &vec![&rand_sigma_p0],
             BlsScalarField::one(),
             true,
             rng,
@@ -246,7 +246,7 @@ impl Prover<'_> {
         let mut sigma_p0 = UniPoly_381::zero();
         let mut rand_sigma_p0 =
             Randomness::<BlsScalarField, DensePolynomial<BlsScalarField>>::empty();
-        for (inter, randoms) in inters.into_iter().zip(rands) {
+        for (inter, randoms) in inters.iter().zip(rands) {
             sigma_p0 = &sigma_p0 + &inter.polys[0];
             rand_sigma_p0 = rand_sigma_p0 + &randoms[0];
         }
@@ -263,7 +263,8 @@ impl Prover<'_> {
                 let tx_clone = tx.clone();
                 s.spawn(move || {
                     let rng = &mut test_rng();
-                    let proof = inter.generate_proof(&self.powers, cms, randoms, tau, rng);
+                    let r: Vec<&Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>> = randoms.iter().map(|x| x).collect();
+                    let proof = inter.generate_proof(&self.powers, cms, &r, tau, rng);
                     tx_clone.send((i, proof)).unwrap();
                 });
                 i += 1;
@@ -271,7 +272,6 @@ impl Prover<'_> {
         });
 
         drop(tx);
-
         let mut proofs = vec![None; bound];
         for (i, proof) in rx {
             proofs[i] = Some(proof);
@@ -281,8 +281,8 @@ impl Prover<'_> {
         let rng = &mut test_rng();
         let (h_sigma_p0, sigma_p0_eval, _) = batch_open(
             &self.powers,
-            &vec![sigma_p0],
-            &vec![rand_sigma_p0.clone()],
+            &vec![&sigma_p0],
+            &vec![&rand_sigma_p0],
             BlsScalarField::one(),
             true,
             rng,

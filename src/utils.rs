@@ -193,10 +193,11 @@ impl<E> OpenEval<E> where E: Pairing {
 }
 
 // the batched KZG opening scheme in [GWC19]
+#[inline]
 pub fn batch_open<E: Pairing, R: RngCore>(
     powers: &Powers<E>,
-    polys: &Vec<DensePolynomial<E::ScalarField>>,
-    randoms: &Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
+    polys: &Vec<&DensePolynomial<E::ScalarField>>,
+    randoms: &Vec<&Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
     point: E::ScalarField,
     perfect_hiding: bool,
     rng: &mut R,
@@ -301,6 +302,7 @@ pub fn batch_check<E: Pairing, R: RngCore>(
     assert_eq!(lhs, rhs);
 }
 
+#[inline]
 pub fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: DenseUVPolynomial<F>>(
     p: &P,
 ) -> (usize, Vec<F::BigInt>) {
@@ -312,6 +314,7 @@ pub fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: DenseUVPolyno
     (num_leading_zeros, coeffs)
 }
 
+#[inline]
 pub fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
     let coeffs = ark_std::cfg_iter!(p)
         .map(|s| s.into_bigint())

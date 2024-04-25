@@ -9,10 +9,10 @@ use super::{prover::Prover, verifier::Verifier};
 
 #[test]
 fn test_pol() {
-    // let total_number = 2usize.pow(20);
-    // let group_size: usize = 8;
-    let total_number: usize = 131072;
-    let group_size: usize = 131072;
+    let total_number = 2usize.pow(10);
+    let group_size: usize = 8;
+    // let total_number: usize = 131072;
+    // let group_size: usize = 131072;
     let max_degree = group_size * 2;
     let max_bits = 64;
     

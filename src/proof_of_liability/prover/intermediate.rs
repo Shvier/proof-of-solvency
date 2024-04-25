@@ -1,7 +1,6 @@
 use std::{
     mem::size_of,
     sync::{Arc, Mutex},
-    thread,
 };
 
 use ark_ec::pairing::Pairing;
@@ -12,7 +11,6 @@ use ark_poly::{
 };
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, KZG10};
 use ark_std::{rand::RngCore, test_rng, One, Zero};
-use crossbeam::channel::bounded;
 
 use crate::utils::{
     batch_open, build_bit_vector, compute_accumulative_vector, convert_to_zk_polynomial,
@@ -224,38 +222,24 @@ impl<E: Pairing> Intermediate<E> {
         Commitment<E>,
         Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>,
     )> {
-        let bound = polys.len();
-        let (tx, rx) = bounded(bound);
+        let rng = &mut test_rng();
 
-        thread::scope(|s| {
-            let mut i = 0;
-            for p in polys.as_slice() {
-                let tx_clone = tx.clone();
-                let powers = powers.clone();
-                s.spawn(move || {
-                    let rng = &mut test_rng();
-                    let powers = powers.lock().unwrap();
-                    let (cm_p, random_p) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(
-                        &powers,
-                        &p,
-                        Some(p.degree()),
-                        Some(rng),
-                    )
-                    .unwrap();
-                    tx_clone.send((i, cm_p, random_p)).unwrap();
-                });
-                i += 1;
-            }
-        });
+        let mut commitments = Vec::<(Commitment<E>,
+        Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>)>::new();
 
-        drop(tx);
-
-        let mut commitments = vec![None; bound + 1];
-        for (i, cm_p, random_p) in rx {
-            commitments[i] = Some((cm_p, random_p));
+        for p in polys.as_slice() {
+            let powers = powers.clone();
+            let powers = powers.lock().unwrap();
+            let (cm_p, random_p) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(
+                &powers,
+                &p,
+                Some(p.degree()),
+                Some(rng),
+            )
+            .unwrap();
+            commitments.push((cm_p, random_p));
         }
 
-        let rng = &mut test_rng();
         let powers = powers.lock().unwrap();
         let (cm_q, random_q) = KZG10::<E, DensePolynomial<E::ScalarField>>::commit(
             &powers,
@@ -264,37 +248,40 @@ impl<E: Pairing> Intermediate<E> {
             Some(rng),
         )
         .unwrap();
-        let last = commitments.last_mut().unwrap();
-        *last = Some((cm_q, random_q));
-
-        commitments.into_iter().map(|x| x.unwrap()).collect()
+        commitments.push((cm_q, random_q));
+        commitments
     }
 
+    #[inline]
     pub fn generate_proof<R: RngCore>(
         &self,
         powers: &Powers<E>,
         cms: &Vec<Commitment<E>>,
-        randoms: &Vec<Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
+        randoms: &Vec<&Randomness<E::ScalarField, DensePolynomial<E::ScalarField>>>,
         tau: E::ScalarField,
         rng: &mut R,
     ) -> IntermediateProof<E> {
+        println!("Start generate");
         let omega = self.domain.element(1);
+        let polys: Vec<_> = self.polys.iter().chain(vec![&self.q_w]).collect();
         let (h_1, open_evals_1, gamma_1) = batch_open(
             &powers,
-            &vec![self.polys.as_slice(), vec![self.q_w.clone()].as_slice()].concat(),
+            &polys,
             &randoms,
             tau,
             false,
             rng,
         );
+        println!("h1 done");
         let (h_2, open_evals_2, gamma_2) = batch_open(
             &powers,
-            &vec![self.polys.first().unwrap().clone()],
-            &vec![randoms.first().unwrap().clone()],
+            &vec![&self.polys.first().unwrap()],
+            &vec![&randoms.first().unwrap()],
             tau * omega,
             false,
             rng,
         );
+        println!("h2 done");
 
         IntermediateProof {
             proof_at_tau: (h_1, open_evals_1, gamma_1),

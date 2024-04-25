@@ -244,8 +244,8 @@ impl Prover {
         };
         let (h_1, open_evals_1, gamma_1) = batch_open(
             &powers, 
-            &vec![accum_poly.clone(), bal_poly.clone(), self.poly.clone(), quotient], 
-            &vec![random_accum.clone(), random_bal, random_selector, random_q], 
+            &vec![&accum_poly, bal_poly, &self.poly, &quotient], 
+            &vec![&random_accum, &random_bal, &random_selector, &random_q], 
             challenge_point, 
             false, 
             rng
@@ -253,16 +253,16 @@ impl Prover {
 
         let (h_2, open_evals_2, gamma_2) = batch_open(
             &powers, 
-            &vec![accum_poly.clone()], 
-            &vec![random_accum.clone()], 
+            &vec![&accum_poly], 
+            &vec![&random_accum], 
             challenge_point * self.omega, 
             false, 
             rng
         );
         let (h_3, open_evals_3, gamma_3) = batch_open(
             &powers, 
-            &vec![accum_poly.clone()], 
-            &vec![random_accum.clone()], 
+            &vec![&accum_poly], 
+            &vec![&random_accum], 
             BlsScalarField::one(), 
             true, 
             rng
