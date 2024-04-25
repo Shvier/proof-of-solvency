@@ -261,7 +261,6 @@ impl<E: Pairing> Intermediate<E> {
         tau: E::ScalarField,
         rng: &mut R,
     ) -> IntermediateProof<E> {
-        println!("Start generate");
         let omega = self.domain.element(1);
         let polys: Vec<_> = self.polys.iter().chain(vec![&self.q_w]).collect();
         let (h_1, open_evals_1, gamma_1) = batch_open(
@@ -272,7 +271,6 @@ impl<E: Pairing> Intermediate<E> {
             false,
             rng,
         );
-        println!("h1 done");
         let (h_2, open_evals_2, gamma_2) = batch_open(
             &powers,
             &vec![&self.polys.first().unwrap()],
@@ -281,7 +279,6 @@ impl<E: Pairing> Intermediate<E> {
             false,
             rng,
         );
-        println!("h2 done");
 
         IntermediateProof {
             proof_at_tau: (h_1, open_evals_1, gamma_1),
