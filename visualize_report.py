@@ -49,15 +49,14 @@ def query_proof_time(df, num_of_bits):
 
 def show_performance_by(power):
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-    df = query_df(power)
-    df = df.query('num_of_groups != 2048')
-    num_of_bits = list(set(df['num_of_bits']))
+    filtered_df = query_df(power).query('num_of_groups != 2048')
+    num_of_bits = list(set(filtered_df['num_of_bits']))
     for num in num_of_bits:
-        (num_of_groups_df, proof_size_df) = query_proof_size(df, num)
+        (num_of_groups_df, proof_size_df) = query_proof_size(filtered_df, num)
         axs[0].plot(num_of_groups_df, proof_size_df, label='{}bits'.format(num))
         axs[0].set_xlabel('# of Groups')
         axs[0].set_ylabel('Proof Size (KB)')
-        (_, proving_time_df, verifying_time_df) = query_proof_time(df, num)
+        (_, proving_time_df, verifying_time_df) = query_proof_time(filtered_df, num)
         axs[1].plot(num_of_groups_df, proving_time_df, label='{}bits'.format(num))
         axs[1].legend()
         axs[1].set_xlabel('# of Groups')
@@ -73,15 +72,16 @@ def show_performance_by(power):
     fig.suptitle('# of Users = 2^{}'.format(power))
     plt.show()
 
-show_performance_by(18)
+show_performance_by(17)
 
 proof_time_table = {}
 powers_range = range(16, 19)
 for power in powers_range:
-    (num_of_groups_df, proving_time_df, verifying_time_df) = query_proof_time(power)
+    filtered_df = query_df(power).query('num_of_groups != 2048 and num_of_users != 524288')
+    (num_of_groups_df, proving_time_df, verifying_time_df) = query_proof_time(filtered_df, 64)
     proof_time_table[power] = (num_of_groups_df, proving_time_df, verifying_time_df)
 
-range_proof_size = list(map(lambda i: 2**i, range(0, 12)))
+range_proof_size = list(map(lambda i: 2**i, range(0, 11)))
 x_l = np.arange(len(range_proof_size))
 width = 0.25
 multiplier = 0
