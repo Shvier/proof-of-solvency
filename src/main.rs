@@ -1,7 +1,5 @@
 use std::{
-    fs::{self, File},
-    io::{BufWriter, Read, Write},
-    time::{Duration, Instant},
+    env, fs::{self, File}, io::{BufWriter, Read, Write}, path::Path, time::{Duration, Instant}
 };
 
 use ark_poly::domain::EvaluationDomain;
@@ -15,11 +13,14 @@ use proof_of_solvency::{
 };
 
 fn main() {
-    run_pol();
+    let args: Vec<String> = env::args().collect();
+    let file_path = &args[1];
+    assert!(Path::new(file_path).exists());
+    run_pol(file_path.to_string());
 }
 
-fn run_pol() {
-    let (configs, balances) = read_config();
+fn run_pol(bal_path: String) {
+    let (configs, balances) = read_config(bal_path);
     for config in configs {
         let dir = format!(
             "./bench_data/{}users/{}bits/{}groups",
@@ -66,13 +67,13 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
     (proof_size, elapsed1, elapsed2, elapsed3)
 }
 
-fn read_config() -> (Vec<BenchConfig>, Vec<u64>) {
+fn read_config(bal_path: String) -> (Vec<BenchConfig>, Vec<u64>) {
     let mut file = File::open("./bench_data/config.json").unwrap();
     let mut buffer = String::new();
     file.read_to_string(&mut buffer).unwrap();
     let configs: Vec<BenchConfig> = serde_json::from_str(&buffer).unwrap();
 
-    let file = File::open("./bench_data/balance.csv").unwrap();
+    let file = File::open(bal_path).unwrap();
     let mut reader = ReaderBuilder::new().has_headers(false).from_reader(file);
     let mut balances = Vec::<u64>::new();
     for result in reader.deserialize() {
