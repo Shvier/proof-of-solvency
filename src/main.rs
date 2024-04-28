@@ -50,21 +50,39 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
     let prover = Prover::setup(&balances, group_size, max_degree);
     let rng = &mut test_rng();
     let gamma = BlsScalarField::rand(rng);
-    let now = Instant::now();
-    let (inters, comms, rands) = prover.concurrent_run(config.num_of_bits, gamma);
-    let elapsed1 = now.elapsed();
-    let taus = inters
-        .iter()
-        .map(|inter| inter.domain.sample_element_outside_domain(rng))
-        .collect();
-    let now = Instant::now();
-    let (proof, _) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
-    let proof_size = proof.deep_size();
-    let elapsed2 = now.elapsed();
-    let now = Instant::now();
-    Verifier::validate_liability_proof(&prover.vk, proof, &taus, gamma, rng);
-    let elapsed3 = now.elapsed();
-    (proof_size, elapsed1, elapsed2, elapsed3)
+    match config.num_of_groups {
+        1 => {
+            let now = Instant::now();
+            let (inters, comms, rands) = prover.run(config.num_of_bits, gamma, rng);
+            let elapsed1 = now.elapsed();
+            let taus = inters.iter().map(| inter | inter.domain.sample_element_outside_domain(rng)).collect();
+            let now = Instant::now();
+            let (proof, _) = prover.generate_proof(&inters, &comms, &rands, &taus, rng);
+            let proof_size = proof.deep_size();
+            let elapsed2 = now.elapsed();
+            let now = Instant::now();
+            Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, rng);
+            let elapsed3 = now.elapsed();
+            (proof_size, elapsed1, elapsed2, elapsed3)
+        }
+        _ => {
+            let now = Instant::now();
+            let (inters, comms, rands) = prover.concurrent_run(config.num_of_bits, gamma);
+            let elapsed1 = now.elapsed();
+            let taus = inters
+                .iter()
+                .map(|inter| inter.domain.sample_element_outside_domain(rng))
+                .collect();
+            let now = Instant::now();
+            let (proof, _) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
+            let proof_size = proof.deep_size();
+            let elapsed2 = now.elapsed();
+            let now = Instant::now();
+            Verifier::validate_liability_proof(&prover.vk, proof, &taus, gamma, rng);
+            let elapsed3 = now.elapsed();
+            (proof_size, elapsed1, elapsed2, elapsed3)
+        }
+    }
 }
 
 fn read_config(bal_path: String) -> (Vec<BenchConfig>, Vec<u64>) {

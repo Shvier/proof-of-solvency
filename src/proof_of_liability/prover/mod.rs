@@ -187,7 +187,7 @@ impl Prover<'_> {
         &self,
         inters: &Vec<Intermediate<Bls12_381>>,
         comms: &Vec<Vec<Commitment<Bls12_381>>>,
-        rands: &Vec<Vec<&Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>,
+        rands: &Vec<Vec<Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>>>,
         taus: &Vec<BlsScalarField>,
         rng: &mut R,
     ) -> (LiabilityProof, Randomness<BlsScalarField, UniPoly_381>) {
@@ -203,10 +203,11 @@ impl Prover<'_> {
             let cms = &comms[i];
             let randoms = &rands[i];
             let tau = taus[i];
-            let proof = inter.generate_proof(&self.powers, cms, randoms, tau, rng);
+            let r: Vec<&Randomness<BlsScalarField, DensePolynomial<BlsScalarField>>> = randoms.iter().map(|x| x).collect();
+            let proof = inter.generate_proof(&self.powers, cms, &r, tau, rng);
             proofs.push(proof);
             sigma_p0 = &sigma_p0 + &inter.polys[0];
-            rand_sigma_p0 = rand_sigma_p0 + randoms[0];
+            rand_sigma_p0 = rand_sigma_p0 + &randoms[0];
 
             i += 1;
         }
