@@ -55,7 +55,7 @@ def query_proof_time_for_threads(num_of_bits):
         mt_vt_list.append(verifying_time)
     return (st_pt_list, st_vt_list, mt_pt_list, mt_vt_list)
 
-def show_comparison_by(num_of_bits):
+def show_proof_time_by(num_of_bits):
     (st_pt_list, st_vt_list, mt_pt_list, mt_vt_list) = query_proof_time_for_threads(num_of_bits)
 
     fig, axs = plt.subplots(1, 2, figsize=(12, 6))
@@ -77,6 +77,25 @@ def show_comparison_by(num_of_bits):
     axs[1].set_ylabel('Verifying Time (s)')
     axs[1].legend(loc='upper left')
     fig.suptitle('# of Bits = 2^{}'.format(num_of_bits))
+
+    plt.show()
+
+def show_performance_by_num_of_bits(num_of_bits):
+    (_, _, mt_pt_list, mt_vt_list) = query_proof_time_for_threads(num_of_bits)
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+
+    num_of_users_range = list(map(lambda i: 2**i, powers_range))
+
+    axs[0].plot(num_of_users_range, mt_pt_list)
+    axs[0].set_xlabel('# of Users')
+    axs[0].set_ylabel('Proving Time (s)')
+    axs[1].plot(num_of_users_range, mt_vt_list)
+    axs[1].set_xlabel('# of Users')
+    axs[1].set_ylabel('Verifying Time (s)')
+
+    fig.suptitle('# of Bits = 2^{}'.format(num_of_bits))
+
+    print(mt_pt_list)
 
     plt.show()
 
@@ -137,8 +156,20 @@ def compare_proof_time(num_of_bits):
     fig.suptitle('# of Bits = 2^{}'.format(num_of_bits))
     plt.show()
 
-show_comparison_by(32)
+i = 8
+while i <= max_allowed_bits:
+    show_proof_time_by(i)
+    i = i * 2
 
-show_performance_by(17)
+i = 8
+while i <= max_allowed_bits:
+    show_performance_by_num_of_bits(i)
+    i = i * 2
 
-compare_proof_time(32)
+for power in powers_range:
+    show_performance_by(power)
+
+i = 8
+while i <= max_allowed_bits:
+    compare_proof_time(i)
+    i = i * 2
