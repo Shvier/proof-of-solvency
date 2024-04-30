@@ -1,9 +1,12 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline
+import argparse
 
-csv = pd.read_csv('./bench_data/report.csv')
+parser = argparse.ArgumentParser(description='path of the csv')
+parser.add_argument('csv_path')
+args = parser.parse_args()
+csv = pd.read_csv(args.csv_path)
 df = pd.DataFrame(csv)
 
 powers_range = range(14, 19)
@@ -61,20 +64,20 @@ def show_proof_time_by(num_of_bits):
     fig, axs = plt.subplots(1, 2, figsize=(12, 6))
     width = 0.25
 
-    xs = np.arange(len(st_pt_list))
+    xs = np.arange(len(mt_pt_list))
     num_of_users_range = list(map(lambda i: 2**i, powers_range))
     axs[0].bar(xs, st_pt_list, width, label='Single Thread')
     axs[0].bar(xs + width, mt_pt_list, width, label='Multi Thread')
     axs[0].set_xticks(xs + width, num_of_users_range)
     axs[0].set_xlabel('# of Users')
-    axs[0].set_ylabel('Proving Time (s)')
+    axs[0].set_ylabel('Proving Time (ms)')
     axs[0].legend(loc='upper left')
 
     axs[1].bar(xs, st_vt_list, width, label='Single Thread')
     axs[1].bar(xs + width, mt_vt_list, width, label='Multi Thread')
     axs[1].set_xticks(xs + width, num_of_users_range)
     axs[1].set_xlabel('# of Users')
-    axs[1].set_ylabel('Verifying Time (s)')
+    axs[1].set_ylabel('Verifying Time (ms)')
     axs[1].legend(loc='upper left')
     fig.suptitle('# of Bits = 2^{}'.format(num_of_bits))
 
@@ -94,8 +97,6 @@ def show_performance_by_num_of_bits(num_of_bits):
     axs[1].set_ylabel('Verifying Time (s)')
 
     fig.suptitle('# of Bits = 2^{}'.format(num_of_bits))
-
-    print(mt_pt_list)
 
     plt.show()
 
