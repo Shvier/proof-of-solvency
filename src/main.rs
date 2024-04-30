@@ -15,24 +15,25 @@ use proof_of_solvency::{
 fn main() {
     let args: Vec<String> = env::args().collect();
     let file_path = &args[1];
+    let output_dir = &args[2];
     assert!(Path::new(file_path).exists());
-    run_pol(file_path.to_string());
+    run_pol(file_path.to_string(), output_dir.to_string());
 }
 
-fn run_pol(bal_path: String) {
+fn run_pol(bal_path: String, output_dir: String) {
     let (configs, balances) = read_config(bal_path);
     for config in configs {
         let dir = format!(
-            "./bench_data/{}users/{}bits/{}groups",
-            config.num_of_users, config.num_of_bits, config.num_of_groups
+            "{}/{}users/{}bits/{}groups",
+            output_dir, config.num_of_users, config.num_of_bits, config.num_of_groups
         );
         let _ = fs::create_dir_all(dir.clone());
         let bals = balances[0..config.num_of_users].to_vec();
         let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
         let report = PoLReport {
-            interpolation_time: format!("{:.2?}", time1.as_secs_f64()),
-            proving_time: format!("{:.2?}", time2.as_secs_f64()),
-            verifying_time: format!("{:.2?}", time3.as_secs_f64()),
+            interpolation_time: format!("{:.2?}", time1.as_millis()),
+            proving_time: format!("{:.2?}", time2.as_millis()),
+            verifying_time: format!("{:.2?}", time3.as_millis()),
             proof_size: format!("{}", proof_size / 1000),
         };
         let json_path =
