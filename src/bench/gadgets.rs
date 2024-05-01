@@ -9,7 +9,7 @@ use csv::Writer;
 use super::{BenchConfig, CSVRecord};
 
 #[test]
-fn generate_balances() {
+fn generate_balances_for_pol() {
     let num_of_users: u32 = 2u32.pow(20);
     let upper_bound = u64::MAX;
     let mut rng = rand::thread_rng();
@@ -17,7 +17,7 @@ fn generate_balances() {
         .map(|_| rng.gen_range(1..upper_bound))
         .collect();
 
-    let path = "./bench_data/balance.csv";
+    let path = "./bench_data/proof_of_liability/balance.csv";
     let mut wtr = Writer::from_path(path).expect("Failed to create file");
     for bal in balances {
         wtr.serialize(bal).expect("Failed to serialize");
@@ -26,7 +26,7 @@ fn generate_balances() {
 }
 
 #[test]
-fn generate_config() {
+fn generate_config_for_pol() {
     let power = 18;
     let configs = vec![
         BenchConfig {
@@ -55,25 +55,25 @@ fn generate_config() {
             num_of_groups: 2,
         },
     ];
-    let file = File::create("./bench_data/config.json").expect("Failed to create config json file");
+    let file = File::create("./bench_data/proof_of_liability/config.json").expect("Failed to create config json file");
     let mut writer = BufWriter::new(file);
     serde_json::to_writer(&mut writer, &configs).expect("Failed to serialize config json");
     writer.flush().expect("Failed to write config json file");
 }
 
 #[test]
-fn generate_csv_report() {
+fn generate_csv_report_for_pol() {
     let prefix = &mut vec![];
     let records = &mut vec![];
-    _generate_csv_report(
-        "./bench_data",
+    _generate_csv_report_for_pol(
+        "./bench_data/proof_of_liability",
         0,
         &vec!["users", "bits", "groups"],
         prefix,
         records,
     );
     records.sort_by(|a, b| a.num_of_groups.cmp(&b.num_of_groups));
-    let path = "./bench_data/report.csv";
+    let path = "./bench_data/proof_of_liability/report.csv";
     let mut wtr = Writer::from_path(path).expect("Failed to create file");
     for record in records {
         wtr.serialize(record).expect("Failed to serialize");
@@ -82,7 +82,7 @@ fn generate_csv_report() {
 }
 
 #[cfg(test)]
-fn _generate_csv_report(
+fn _generate_csv_report_for_pol(
     path: &str,
     depth: usize,
     levels: &Vec<&str>,
@@ -131,9 +131,11 @@ fn _generate_csv_report(
             let folder = path.file_name().into_string().unwrap();
             let mut split = folder.split(levels[depth]);
             let pre = split.next().unwrap();
-            prefix.push(pre.parse::<usize>().unwrap());
-            _generate_csv_report(&path_str, depth + 1, &levels, prefix, records);
-            prefix.pop();
+            if let Some(num_of_groups) = pre.parse::<usize>().ok() {
+                prefix.push(num_of_groups);
+                _generate_csv_report_for_pol(&path_str, depth + 1, &levels, prefix, records);
+                prefix.pop();
+            }
         }
     }
 }

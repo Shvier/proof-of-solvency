@@ -87,7 +87,7 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
 }
 
 fn read_config(bal_path: String) -> (Vec<BenchConfig>, Vec<u64>) {
-    let mut file = File::open("./bench_data/config.json").unwrap();
+    let mut file = File::open("./bench_data/proof_of_liability/config.json").unwrap();
     let mut buffer = String::new();
     file.read_to_string(&mut buffer).unwrap();
     let configs: Vec<BenchConfig> = serde_json::from_str(&buffer).unwrap();
