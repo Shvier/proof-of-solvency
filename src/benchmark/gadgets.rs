@@ -91,7 +91,7 @@ fn _generate_csv_report_for_pol(
 ) {
     use std::io::Read;
 
-    use crate::bench::PoLReport;
+    use crate::benchmark::PoLReport;
 
     if depth == levels.len() {
         assert_eq!(prefix.len(), levels.len());

@@ -7,7 +7,7 @@ use ark_std::{test_rng, UniformRand};
 
 use csv::ReaderBuilder;
 use proof_of_solvency::{
-    bench::{BenchConfig, PoLReport},
+    benchmark::{BenchConfig, PoLReport},
     proof_of_liability::{prover::Prover, verifier::Verifier},
     types::BlsScalarField,
 };
