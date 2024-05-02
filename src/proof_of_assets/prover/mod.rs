@@ -2,7 +2,7 @@ use ark_bls12_381::{Bls12_381, Fq, Fr};
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_ff::{FftField, Field, PrimeField, QuadExtField};
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
-use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10};
+use ark_poly_commit::{kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10}, PCRandomness};
 use ark_std::{rand::RngCore, test_rng, Zero, One};
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
@@ -38,6 +38,7 @@ pub struct Prover {
     poly: DensePolynomial<<Bls12_381 as Pairing>::ScalarField>,
     selector: Vec<bool>,
     max_degree: usize,
+    randomness: Option<Randomness<BlsScalarField, UniPoly_381>>,
 }
 
 impl Prover {
@@ -69,6 +70,7 @@ impl Prover {
             poly,
             selector: selector.to_vec(),
             max_degree,
+            randomness: None,
         }
     }
 
@@ -105,6 +107,13 @@ impl Prover {
                 c1: pp.beta_h.y.c1.to_string(),
             },
         };
+        let randomness = self.randomness.as_ref().unwrap().blinding_polynomial
+            .coeffs
+            .iter()
+            .map(| c | {
+                c.to_string()
+            })
+            .collect();
         PoAProverJSON {
             params: TrustSetupParams {
                 powers_of_g,
@@ -115,6 +124,7 @@ impl Prover {
             selector: SelectorPoly {
                 values: self.selector.clone(),
                 coeffs: self.poly.coeffs.iter().map(| x | x.to_string()).collect(),
+                randomness,
             },
         }
     }
@@ -190,6 +200,15 @@ impl Prover {
         let domain_size = prover_json.selector.values.len().checked_next_power_of_two().expect("Unsupported domain size");
         let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
         let max_degree: usize = domain_size * 2;
+        let coeffs: Vec<_> = prover_json.selector.randomness
+            .iter()
+            .map(| c | {
+                BlsScalarField::from_str(c).unwrap()
+            })
+            .collect();
+        let blinding_poly = UniPoly_381::from_coefficients_vec(coeffs);
+        let mut randomness = Randomness::empty();
+        randomness.blinding_polynomial = blinding_poly;
         Self {
             sigma,
             omega,
@@ -199,10 +218,11 @@ impl Prover {
             poly,
             selector: prover_json.selector.values,
             max_degree,
+            randomness: Some(randomness),
         }
     }
 
-    pub fn commit_to_selector(&self) -> (Commitment<Bls12_381>, Randomness<BlsScalarField, UniPoly_381>) {
+    pub fn commit_to_selector(&mut self) -> (Commitment<Bls12_381>, Randomness<BlsScalarField, UniPoly_381>) {
         let max_degree = self.domain_size;
         let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
         let powers_of_gamma_g = (0..=max_degree)
@@ -214,7 +234,9 @@ impl Prover {
         };
 
         let rng = &mut test_rng();
-        KZG10::<Bls12_381, UniPoly_381>::commit(&powers, &self.poly, Some(self.poly.degree()), Some(rng)).unwrap()
+        let (cm, rand) = KZG10::<Bls12_381, UniPoly_381>::commit(&powers, &self.poly, Some(self.poly.degree()), Some(rng)).unwrap();
+        self.randomness = Some(rand.clone());
+        (cm, rand)
     }
 
     pub fn commit<R: RngCore>(&self, poly: &DensePolynomial<BlsScalarField>, rng: &mut R) -> (Commitment<Bls12_381>, Randomness<BlsScalarField, UniPoly_381>) {
@@ -273,7 +295,7 @@ impl Prover {
         }
     }
 
-    pub fn generate_proof(&self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)> {
+    pub fn generate_proof(&mut self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)> {
         let (cm, randomness) = self.commit_to_selector();
         let omega = &self.omega;
         let selector = &self.selector;
@@ -339,13 +361,13 @@ impl Prover {
     }
 
     // return Randomness only for DEBUG to verify the correctness of assets
-    pub fn prove_accumulator(&self, bal_poly: &DensePolynomial<BlsScalarField>, gamma: BlsScalarField) -> (AssetsProof, Randomness<BlsScalarField, UniPoly_381>) {
+    pub fn prove_accumulator(&self, bal_poly: &DensePolynomial<BlsScalarField>, gamma: BlsScalarField, cm_selector: &Commitment<Bls12_381>) -> (AssetsProof, Randomness<BlsScalarField, UniPoly_381>) {
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(self.selector.len()).unwrap();
         let accum_poly = self.construct_accumulator(bal_poly, domain);
         let rng = &mut test_rng();
         let (cm_accum, random_accum) = self.commit(&accum_poly, rng);
         let (cm_bal, random_bal) = self.commit(&bal_poly, rng);
-        let (cm_selector, random_selector) = self.commit_to_selector();
+        let random_selector = self.randomness.as_ref().unwrap();
 
         let (w_1, w_2) = self.compute_w1_w2(&accum_poly, bal_poly, domain);
         let w = linear_combine_polys::<Bls12_381>(&vec![w_1, w_2], gamma);
@@ -400,7 +422,7 @@ impl Prover {
         (AssetsProof {
             batch_check_proof: BatchCheckProof { 
                 commitments: vec![
-                    vec![cm_accum, cm_bal, cm_selector, cm_q],
+                    vec![cm_accum, cm_bal, *cm_selector, cm_q],
                     vec![cm_accum],
                     vec![cm_accum],
                 ], 

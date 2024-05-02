@@ -58,6 +58,7 @@ pub struct KeyPair {
 pub struct SelectorPoly {
     pub values: Vec<bool>,
     pub coeffs: Vec<String>,
+    pub randomness: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

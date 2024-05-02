@@ -1,14 +1,12 @@
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_std::{rand::Rng, test_rng, UniformRand, Zero, One};
-use ark_poly::Polynomial;
 use ark_test_curves::secp256k1;
+use ark_poly::Polynomial;
 use num_bigint::{BigUint, RandomBits};
 
 use std::ops::Mul;
 
 use crate::{proof_of_assets::{prover::Prover, verifier::Verifier}, types::BlsScalarField};
-
-use super::PoA;
 
 #[test]
 fn test_poa() {
@@ -20,21 +18,21 @@ fn test_poa() {
     })
     .collect();
 
-    let poa = PoA::setup(&selector);
+    let mut prover = Prover::setup(&selector);
 
     let mut pks = Vec::<secp256k1::G1Affine>::new();
     let mut sks = Vec::<BigUint>::new();
 
     for _ in range.clone() {
         let private_key: BigUint = rng.sample(RandomBits::new(256u64));
-        let public_key = poa.prover.sigma.gs.mul_bigint(private_key.to_u64_digits());
+        let public_key = prover.sigma.gs.mul_bigint(private_key.to_u64_digits());
         sks.push(private_key);
         pks.push(public_key.into_affine());
     }
     
-    let proofs = poa.prover.generate_proof(&pks, &sks);
-    let vk = &poa.prover.vk;
-    let omega = &poa.prover.omega;
+    let proofs = prover.generate_proof(&pks, &sks);
+    let vk = &prover.vk;
+    let omega = &prover.omega;
 
     Verifier::batch_check(
         vk, 
@@ -58,7 +56,7 @@ fn test_poa() {
     .collect();
     let bal_poly = Prover::generate_balance_poly(&balances);
     let gamma = BlsScalarField::rand(rng);
-    let (assets_proof, randomness) = poa.prover.prove_accumulator(&bal_poly, gamma);
+    let (assets_proof, randomness) = prover.prove_accumulator(&bal_poly, gamma, &proofs[0].0);
     assert_eq!(balances.len().checked_next_power_of_two().unwrap(), assets_proof.domain_size);
     Verifier::validate_assets_proof(&vk, &assets_proof, gamma, rng);
 

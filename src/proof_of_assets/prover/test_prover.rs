@@ -18,9 +18,9 @@ fn test_prover() {
         rand % 2 == 1
     })
     .collect();
-    let prover = Prover::setup(&selector);
+    let mut prover = Prover::setup(&selector);
     let omega = prover.omega;
-    let vk = &prover.vk;
+    let vk = prover.vk.clone();
     for i in 0..selector.len() {
         let s = selector[i];
         let (cm, randomness) = prover.commit_to_selector();

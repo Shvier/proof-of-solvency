@@ -1,12 +1,14 @@
 use std::{fs::{self, File}, io::{BufWriter, Read, Write}, time::Instant, str::FromStr};
 
+use ark_bls12_381::G1Affine;
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, Polynomial};
+use ark_poly_commit::kzg10::Commitment;
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use ark_test_curves::secp256k1::{self, Fq};
 use num_bigint::BigUint;
 
-use crate::{benchmark::{KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::Prover, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
+use crate::{benchmark::{AffinePoint, KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::Prover, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
 
 pub fn run_poa(bal_path: &str, num_of_keys: usize) {
     let prover = precompute_poa(num_of_keys);
@@ -27,15 +29,31 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
     let bal_poly = Prover::generate_balance_poly(&balances);
     let interpolate_cost = now.elapsed();
     println!("interpolate balances: {:.2?}", interpolate_cost);
+
+    let mut file = File::open(format!("./bench_data/proof_of_assets/{}keys/selector_commitment.json", num_of_keys)).unwrap();
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer).unwrap();
+    let comm_str: AffinePoint = serde_json::from_str(&buffer).unwrap();
+    let cm_selector = {
+        let x = ark_bls12_381::Fq::from_str(&comm_str.x).unwrap();
+        let y = ark_bls12_381::Fq::from_str(&comm_str.y).unwrap();
+        Commitment {
+            0: G1Affine::new_unchecked(x, y)
+        }
+    };
+
     let gamma = BlsScalarField::rand(rng);
+
     let now = Instant::now();
-    let (assets_proof, _) = prover.prove_accumulator(&bal_poly, gamma);
+    let (assets_proof, _) = prover.prove_accumulator(&bal_poly, gamma, &cm_selector);
     let prove_accumulator = now.elapsed();
     println!("prove accumulator: {:.2?}", prove_accumulator);
+
     let now = Instant::now();
     Verifier::validate_assets_proof(&prover.vk, &assets_proof, gamma, rng);
     let verify_cost = now.elapsed();
     println!("verifying proof time: {:.2?}", verify_cost);
+
     let domain = Radix2EvaluationDomain::<BlsScalarField>::new(prover.domain_size).unwrap();
     let itr = domain.elements();
     let mut i = 0;
@@ -73,7 +91,7 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover {
     .collect();
 
     let now = Instant::now();
-    let prover = Prover::setup(&selector);
+    let mut prover = Prover::setup(&selector);
     let setup_cost = now.elapsed();
     println!("interpolate selector: {:.2?}", setup_cost);
     let now = Instant::now();
@@ -104,6 +122,16 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover {
     let file = File::create(json_path).unwrap();
     let mut writer = BufWriter::new(file);
     serde_json::to_writer(&mut writer, &setup).unwrap();
+    writer.flush().unwrap();
+
+    let comm: AffinePoint = {
+        let proof = proofs[0].0;
+        AffinePoint { x: proof.0.x.to_string(), y: proof.0.y.to_string() }
+    };
+    let json_path = dir.clone() + "/selector_commitment.json";
+    let file = File::create(json_path).unwrap();
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &comm).unwrap();
     writer.flush().unwrap();
 
     let prover_json = prover.serialize_to_json();
