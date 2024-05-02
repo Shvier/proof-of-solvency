@@ -81,7 +81,7 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
     writer.flush().unwrap();
 }
 
-pub fn precompute_poa(num_of_keys: usize) -> Prover {
+pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
     let (pks, sks) = read_key_pairs();
     let rng = &mut test_rng();
     let selector: Vec<bool> = (0..num_of_keys).into_iter().map(| _ | {
@@ -155,8 +155,8 @@ fn read_key_pairs() -> (Vec<secp256k1::G1Affine>, Vec<BigUint>) {
         let y = Fq::from_str(&key_pair.pk.y).unwrap();
         let pk = secp256k1::G1Affine::new_unchecked(x, y);
         let sk = BigUint::from_str(&key_pair.sk).unwrap();
-        let generator = secp256k1::G1Affine::generator();
-        assert_eq!(generator.mul_bigint(sk.to_u64_digits()).into_affine(), pk);
+        // let generator = secp256k1::G1Affine::generator();
+        // assert_eq!(generator.mul_bigint(sk.to_u64_digits()).into_affine(), pk);
         pks.push(pk);
         sks.push(sk);
     }

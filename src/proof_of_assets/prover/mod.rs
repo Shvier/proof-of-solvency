@@ -7,7 +7,7 @@ use ark_std::{rand::RngCore, test_rng, Zero, One};
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
-use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, ops::Mul};
+use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, ops::Mul, sync::{Arc, Mutex}, thread, time::Instant};
 
 use crate::{benchmark::{AffinePoint, AffineQuadExt, AffineQuadExtPoint, PoAProverJSON, SelectorPoly, TrustSetupParams}, types::{BlsScalarField, UniPoly_381}, utils::{batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
@@ -16,6 +16,7 @@ use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 #[cfg(test)]
 mod test_prover;
 
+#[derive(Clone)]
 pub struct PolyCommitProof {
     pub witness: <Bls12_381 as Pairing>::G1Affine,
     pub rand: BlsScalarField,
@@ -29,7 +30,7 @@ pub struct AssetsProof {
     pub domain_size: usize,
 }
 
-pub struct Prover {
+pub struct Prover<'a> {
     pub sigma: SigmaProtocol,
     pub omega: BlsScalarField,
     pub vk: VerifierKey<Bls12_381>,
@@ -39,9 +40,10 @@ pub struct Prover {
     selector: Vec<bool>,
     max_degree: usize,
     randomness: Option<Randomness<BlsScalarField, UniPoly_381>>,
+    pub powers: Powers<'a, Bls12_381>,
 }
 
-impl Prover {
+impl Prover<'_> {
     pub fn setup(selector: &Vec<bool>) -> Self {
         let domain_size = selector.len().checked_next_power_of_two().expect("Unsupported domain size");
         let max_degree: usize = domain_size * 2;
@@ -52,6 +54,14 @@ impl Prover {
         let poly = evaluations.interpolate();
         let rng = &mut test_rng();
         let pp = KZG10::<Bls12_381, UniPoly_381>::setup(max_degree, false, rng).unwrap();
+        let powers_of_g = pp.powers_of_g[..=max_degree].to_vec();
+        let powers_of_gamma_g = (0..=max_degree)
+            .map(|i| pp.powers_of_gamma_g[&i])
+            .collect();
+        let powers: Powers<Bls12_381> = Powers {
+            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
+            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
+        };
         let vk = VerifierKey {
             g: pp.powers_of_g[0],
             gamma_g: pp.powers_of_gamma_g[&0],
@@ -71,6 +81,7 @@ impl Prover {
             selector: selector.to_vec(),
             max_degree,
             randomness: None,
+            powers,
         }
     }
 
@@ -209,6 +220,14 @@ impl Prover {
         let blinding_poly = UniPoly_381::from_coefficients_vec(coeffs);
         let mut randomness = Randomness::empty();
         randomness.blinding_polynomial = blinding_poly;
+        let powers_of_g = pp.powers_of_g[..=max_degree].to_vec();
+        let powers_of_gamma_g = (0..=max_degree)
+            .map(|i| pp.powers_of_gamma_g[&i])
+            .collect();
+        let powers: Powers<Bls12_381> = Powers {
+            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
+            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
+        };
         Self {
             sigma,
             omega,
@@ -219,19 +238,12 @@ impl Prover {
             selector: prover_json.selector.values,
             max_degree,
             randomness: Some(randomness),
+            powers,
         }
     }
 
     pub fn commit_to_selector(&mut self) -> (Commitment<Bls12_381>, Randomness<BlsScalarField, UniPoly_381>) {
-        let max_degree = self.domain_size;
-        let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
-        let powers_of_gamma_g = (0..=max_degree)
-            .map(|i| self.pp.powers_of_gamma_g[&i])
-            .collect();
-        let powers: Powers<Bls12_381> = Powers {
-            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
-            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
-        };
+        let powers = &self.powers;
 
         let rng = &mut test_rng();
         let (cm, rand) = KZG10::<Bls12_381, UniPoly_381>::commit(&powers, &self.poly, Some(self.poly.degree()), Some(rng)).unwrap();
@@ -258,15 +270,7 @@ impl Prover {
     }
 
     pub fn open(&self, poly: &UniPoly_381, point: BlsScalarField, randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
-        let max_degree = self.max_degree;
-        let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
-        let powers_of_gamma_g = (0..=max_degree)
-            .map(|i| self.pp.powers_of_gamma_g[&i])
-            .collect();
-        let powers: Powers<Bls12_381> = Powers {
-            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
-            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
-        };
+        let powers = &self.powers;
 
         let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(poly, point, randomness).unwrap();
         let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
@@ -295,20 +299,110 @@ impl Prover {
         }
     }
 
-    pub fn generate_proof(&mut self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)> {
+    pub fn concurrent_open<'a>(
+        powers: Arc<&'a Mutex<Powers<'a, Bls12_381>>>, 
+        poly: &Arc<UniPoly_381>, 
+        sigma: &Arc<Mutex<SigmaProtocol>>, 
+        point: BlsScalarField, 
+        randomness: &Arc<Randomness<BlsScalarField, UniPoly_381>>,
+    ) -> PolyCommitProof {
+        let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(poly, point, randomness).unwrap();
+        let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
+
+        let powers = powers.lock().unwrap();
+        let mut w = <Bls12_381 as Pairing>::G1::msm_bigint(
+            &powers.powers_of_g[num_leading_zeros..],
+            &witness_coeffs,
+        );
+
+        let blinding_p = &randomness.blinding_polynomial;
+        let blinding_evaluation = blinding_p.evaluate(&point);
+
+        let random_witness_coeffs = convert_to_bigints(&random.unwrap().coeffs());
+        w += &<<Bls12_381 as Pairing>::G1 as VariableBaseMSM>::msm_bigint(
+            &powers.powers_of_gamma_g,
+            &random_witness_coeffs,
+        );
+
+        drop(powers);
+
+        let eval = poly.evaluate(&point);
+        let sigma = sigma.lock().unwrap();
+        let committed_eval = sigma.gb.mul(eval) + sigma.hb.mul(blinding_evaluation);
+        drop(sigma);
+
+        PolyCommitProof {
+            witness: w.into_affine(),
+            rand: blinding_evaluation,
+            committed_eval: committed_eval.into_affine(),
+        }
+    }
+
+    pub fn generate_proof(&mut self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)> {
         let (cm, randomness) = self.commit_to_selector();
         let omega = &self.omega;
         let selector = &self.selector;
-        let mut proofs = Vec::<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)>::new();
+        let mut proofs = Vec::<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)>::new();
         for i in 0..selector.len() {
+            let now = Instant::now();
+            println!("Generate proof {}", i);
             let s = selector[i];
             let pk = pks[i];
             let sk = &sks[i];
             let point = omega.pow(&[i as u64]);
             let pc_proof = self.open(&self.poly, point, &randomness);
             let sigma_proof = self.sigma.generate_proof(pk, pc_proof.rand.into_bigint().into(), s, sk.clone());
-            proofs.push((cm, pc_proof, sigma_proof))
+            println!("Proof {} is generated: {:.2?}", i, now.elapsed());
+            proofs.push((cm, pc_proof, sigma_proof, i))
         }
+        proofs
+    }
+
+    pub fn concurrent_generate_proof(&mut self, pks: &Vec<secp256k1::G1Affine>, sks: &Vec<BigUint>) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)> {
+        let (cm, randomness) = self.commit_to_selector();
+        let omega = self.omega.clone();
+        let selector = self.selector.clone();
+        let proofs = Arc::new(Mutex::new(Vec::<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)>::new()));
+
+        let now = Instant::now();
+        println!("Start generating the sigma proofs");
+
+        let sigma = Arc::new(Mutex::new(self.sigma.clone()));
+        let poly = Arc::new(self.poly.clone());
+        let randomness = Arc::new(randomness);
+
+        let binding = Mutex::new(self.powers.clone());
+        let powers = Arc::new(&binding);
+
+        thread::scope(| s | {
+            for i in 0..selector.len() {
+                let sel = selector[i];
+                let pk = pks[i];
+                let sk = &sks[i];
+                
+                let sigma = sigma.clone();
+                let poly = poly.clone();
+                let randomness = randomness.clone();
+                let proofs = proofs.clone();
+                let powers = powers.clone();
+
+                s.spawn(move || {
+                    let point = omega.pow(&[i as u64]);
+                    let pc_proof = Prover::concurrent_open(powers, &poly, &sigma, point, &randomness);
+                    let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk.clone());
+                    proofs.lock().unwrap().push((cm, pc_proof, sigma_proof, i));
+                    println!("Sigma proof {} is generated", i);
+                });
+            }
+        });
+        let elapsed = now.elapsed();
+        println!("The sigma proofs are generated: {:.2?}", elapsed);
+        let proofs = proofs.lock().unwrap()
+            .iter()
+            .map(| proof | { 
+                (proof.0, proof.1.clone(), proof.2.clone(), proof.3)
+             })
+            .collect();
         proofs
     }
 
@@ -385,15 +479,7 @@ impl Prover {
         ]);
         let challenge_point = BlsScalarField::from(challenge);
 
-        let max_degree = self.max_degree;
-        let powers_of_g = self.pp.powers_of_g[..=max_degree].to_vec();
-        let powers_of_gamma_g = (0..=max_degree)
-            .map(|i| self.pp.powers_of_gamma_g[&i])
-            .collect();
-        let powers: Powers<Bls12_381> = Powers {
-            powers_of_g: ark_std::borrow::Cow::Owned(powers_of_g),
-            powers_of_gamma_g: ark_std::borrow::Cow::Owned(powers_of_gamma_g),
-        };
+        let powers = self.powers.clone();
         let (h_1, open_evals_1, gamma_1) = batch_open(
             &powers, 
             &vec![&accum_poly, bal_poly, &self.poly, &quotient], 

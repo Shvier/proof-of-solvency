@@ -13,6 +13,7 @@ use crate::utils::{calculate_hash, HashBox};
 #[cfg(test)]
 mod test_sigma;
 
+#[derive(Clone)]
 pub struct SigmaProtocolProof {
     t1: secp256k1::G1Projective,
     t2: Projective<ark_bls12_381::g1::Config>,
@@ -31,6 +32,7 @@ impl fmt::Display for SigmaProtocolProof {
     }
 }
 
+#[derive(Clone)]
 pub struct SigmaProtocol {
     pub gs: secp256k1::G1Affine,
     pub gb: <Bls12_381 as Pairing>::G1Affine,

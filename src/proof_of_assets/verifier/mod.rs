@@ -36,25 +36,23 @@ impl Verifier {
 
     pub fn batch_check(
         vk: &VerifierKey<Bls12_381>,
-        proofs: &Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof)>,
+        proofs: &Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)>,
         pks: Vec<secp256k1::G1Affine>,
         omega: <Bls12_381 as Pairing>::ScalarField,
     ) {
-        let mut i = 0;
         let mut points = Vec::<BlsScalarField>::new();
         let mut cms = Vec::<Vec<Commitment<Bls12_381>>>::new();
         let mut witnesses = Vec::<<Bls12_381 as Pairing>::G1>::new();
         let mut evals = Vec::<Vec<OpenEval<Bls12_381>>>::new();
         let mut gammas = Vec::<BlsScalarField>::new();
-        for (cm, pc_proof, sigma_proof) in proofs {
-            SigmaProtocol::validate(secp256k1::G1Affine::generator(), vk.g, vk.gamma_g, sigma_proof, pks[i], pc_proof.committed_eval);
-            let point = omega.pow(&[i as u64]);
+        for (cm, pc_proof, sigma_proof, i) in proofs {
+            SigmaProtocol::validate(secp256k1::G1Affine::generator(), vk.g, vk.gamma_g, sigma_proof, pks[*i], pc_proof.committed_eval);
+            let point = omega.pow(&[*i as u64]);
             points.push(point);
             cms.push(vec![*cm]);
             witnesses.push(pc_proof.witness.into_group());
             gammas.push(BlsScalarField::one());
             evals.push(vec![OpenEval::Committed(pc_proof.committed_eval)]);
-            i += 1;
         }
         let rng = &mut test_rng();
         batch_check(
