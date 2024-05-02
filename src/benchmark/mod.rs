@@ -29,3 +29,54 @@ pub struct CSVRecord {
     pub proof_size: String,
     pub timestamp: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AffinePoint {
+    pub x: String,
+    pub y: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AffineQuadExt {
+    pub c0: String,
+    pub c1: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AffineQuadExtPoint {
+    pub x: AffineQuadExt,
+    pub y: AffineQuadExt,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyPair {
+    pub sk: String,
+    pub pk: AffinePoint,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SelectorPoly {
+    pub values: Vec<bool>,
+    pub coeffs: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PoASetup {
+    pub interpolate_selector: String,
+    pub proving_time: String,
+    pub verifying_time: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrustSetupParams {
+    pub powers_of_g: Vec<AffinePoint>,
+    pub powers_of_gamma_g: Vec<AffinePoint>,
+    pub h: AffineQuadExtPoint,
+    pub beta_h: AffineQuadExtPoint,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PoAProverJSON {
+    pub params: TrustSetupParams,
+    pub selector: SelectorPoly,
+}
