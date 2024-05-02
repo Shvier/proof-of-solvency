@@ -1,15 +1,15 @@
-use ark_bls12_381::{Bls12_381, Fr};
+use ark_bls12_381::{Bls12_381, Fq, Fr};
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};
-use ark_ff::{PrimeField, FftField, Field};
+use ark_ff::{FftField, Field, PrimeField, QuadExtField};
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, UniversalParams, VerifierKey, KZG10};
 use ark_std::{rand::RngCore, test_rng, Zero, One};
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
-use std::{borrow::Borrow, ops::Mul};
+use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, ops::Mul};
 
-use crate::{types::{BlsScalarField, UniPoly_381}, utils::{batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
+use crate::{benchmark::{AffinePoint, AffineQuadExt, AffineQuadExtPoint, PoAProverJSON, SelectorPoly, TrustSetupParams}, types::{BlsScalarField, UniPoly_381}, utils::{batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
 use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 
@@ -42,8 +42,8 @@ pub struct Prover {
 
 impl Prover {
     pub fn setup(selector: &Vec<bool>) -> Self {
-        let max_degree: usize = 256;
         let domain_size = selector.len().checked_next_power_of_two().expect("Unsupported domain size");
+        let max_degree: usize = domain_size * 2;
         let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(domain_size).unwrap();
         let evals = selector.into_iter().map(| s | Fr::from(*s)).collect();
@@ -68,6 +68,136 @@ impl Prover {
             domain_size,
             poly,
             selector: selector.to_vec(),
+            max_degree,
+        }
+    }
+
+    pub fn serialize_to_json(&self) -> PoAProverJSON {
+        let pp = self.pp.borrow();
+        let powers_of_g: Vec<AffinePoint> = pp.powers_of_g.iter()
+        .map(| g | {
+            AffinePoint { x: g.x.to_string(), y: g.y.to_string() }
+        })
+        .collect();
+        let powers_of_gamma_g: Vec<AffinePoint> = (0..=self.max_degree)
+        .map(|i| {
+            let point = pp.powers_of_gamma_g[&i];
+            AffinePoint { x: point.x.to_string(), y: point.y.to_string() }
+        })
+        .collect();
+        let h = AffineQuadExtPoint {
+            x: AffineQuadExt {
+                c0: pp.h.x.c0.to_string(),
+                c1: pp.h.x.c1.to_string(),
+            },
+            y: AffineQuadExt {
+                c0: pp.h.y.c0.to_string(),
+                c1: pp.h.y.c1.to_string(),
+            },
+        };
+        let beta_h = AffineQuadExtPoint {
+            x: AffineQuadExt {
+                c0: pp.beta_h.x.c0.to_string(),
+                c1: pp.beta_h.x.c1.to_string(),
+            },
+            y: AffineQuadExt {
+                c0: pp.beta_h.y.c0.to_string(),
+                c1: pp.beta_h.y.c1.to_string(),
+            },
+        };
+        PoAProverJSON {
+            params: TrustSetupParams {
+                powers_of_g,
+                powers_of_gamma_g,
+                h,
+                beta_h,
+            },
+            selector: SelectorPoly {
+                values: self.selector.clone(),
+                coeffs: self.poly.coeffs.iter().map(| x | x.to_string()).collect(),
+            },
+        }
+    }
+
+    pub fn deserialize_from_json(file_path: &str) -> Self {
+        use std::str::FromStr;
+
+        let mut file = File::open(file_path).unwrap();
+        let mut buffer = String::new();
+        file.read_to_string(&mut buffer).unwrap();
+        let prover_json: PoAProverJSON = serde_json::from_str(&buffer).unwrap();
+        let params_json = prover_json.params;
+        let powers_of_g: Vec<_> = params_json.powers_of_g.iter()
+            .map(| point | {
+                let x = Fq::from_str(&point.x).unwrap();
+                let y = Fq::from_str(&point.y).unwrap();
+                <Bls12_381 as Pairing>::G1Affine::new_unchecked(x, y)
+            })
+            .collect();
+        let powers_of_gamma_g: Vec<_> = params_json.powers_of_gamma_g.iter()
+            .map(| point | {
+                let x = Fq::from_str(&point.x).unwrap();
+                let y = Fq::from_str(&point.y).unwrap();
+                <Bls12_381 as Pairing>::G1Affine::new_unchecked(x, y).into_group()
+            })
+            .collect();
+        let powers_of_gamma_g: BTreeMap::<usize, <Bls12_381 as Pairing>::G1Affine> = <Bls12_381 as Pairing>::G1::normalize_batch(&powers_of_gamma_g)
+            .into_iter()
+            .enumerate()
+            .collect();
+        let h = {
+            let c0 = Fq::from_str(&params_json.h.x.c0).unwrap();
+            let c1 = Fq::from_str(&params_json.h.x.c1).unwrap();
+            let x = QuadExtField::new(c0, c1);
+            let c0 = Fq::from_str(&params_json.h.y.c0).unwrap();
+            let c1 = Fq::from_str(&params_json.h.y.c1).unwrap();
+            let y = QuadExtField::new(c0, c1);
+            <Bls12_381 as Pairing>::G2Affine::new_unchecked(x, y)
+        };
+        let beta_h = {
+            let c0 = Fq::from_str(&params_json.beta_h.x.c0).unwrap();
+            let c1 = Fq::from_str(&params_json.beta_h.x.c1).unwrap();
+            let x = QuadExtField::new(c0, c1);
+            let c0 = Fq::from_str(&params_json.beta_h.y.c0).unwrap();
+            let c1 = Fq::from_str(&params_json.beta_h.y.c1).unwrap();
+            let y = QuadExtField::new(c0, c1);
+            <Bls12_381 as Pairing>::G2Affine::new_unchecked(x, y)
+        };
+        let pp: UniversalParams<Bls12_381> = UniversalParams {
+            powers_of_g,
+            powers_of_gamma_g,
+            h,
+            beta_h,
+            neg_powers_of_h: BTreeMap::new(),
+            prepared_h: h.into(),
+            prepared_beta_h: beta_h.into(),
+        };
+        let vk = VerifierKey {
+            g: pp.powers_of_g[0],
+            gamma_g: pp.powers_of_gamma_g[&0],
+            h: pp.h,
+            beta_h: pp.beta_h,
+            prepared_h: pp.prepared_h.clone(),
+            prepared_beta_h: pp.prepared_beta_h.clone(),
+        };
+        let sigma = SigmaProtocol::setup(secp256k1::G1Affine::generator(), vk.g, vk.gamma_g);
+        let coeffs: Vec<BlsScalarField> = prover_json.selector.coeffs.iter()
+            .map(| c | {
+                BlsScalarField::from_str(c).unwrap()
+            })
+            .collect();
+        let poly = UniPoly_381::from_coefficients_vec(coeffs);
+        let domain_size = prover_json.selector.values.len().checked_next_power_of_two().expect("Unsupported domain size");
+        let omega = BlsScalarField::get_root_of_unity(domain_size.try_into().unwrap()).unwrap();
+        let max_degree: usize = domain_size * 2;
+        Self {
+            sigma,
+            omega,
+            vk,
+            pp,
+            domain_size,
+            poly,
+            selector: prover_json.selector.values,
             max_degree,
         }
     }

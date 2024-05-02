@@ -1,7 +1,7 @@
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
-use self::{prover::Prover};
+use self::prover::Prover;
 
 pub mod prover;
 pub mod sigma;
