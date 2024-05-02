@@ -1,7 +1,6 @@
 use std::{fs::{self, File}, io::{BufWriter, Read, Write}, time::Instant, str::FromStr};
 
 use ark_bls12_381::G1Affine;
-use ark_ec::{AffineRepr, CurveGroup};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::Commitment;
 use ark_std::{rand::Rng, test_rng, UniformRand};
