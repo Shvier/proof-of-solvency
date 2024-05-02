@@ -384,3 +384,17 @@ pub fn incremental_interpolate<F: FftField, D: EvaluationDomain<F>>(
 
     new_p
 }
+
+pub fn read_balances(bal_path: &str) -> Vec<u64> {
+    use std::fs::File;
+    use csv::ReaderBuilder;
+    
+    let file = File::open(bal_path).unwrap();
+    let mut reader = ReaderBuilder::new().has_headers(false).from_reader(file);
+    let mut balances = Vec::<u64>::new();
+    for result in reader.deserialize() {
+        let record: u64 = result.unwrap();
+        balances.push(record);
+    }
+    balances
+}

@@ -61,7 +61,7 @@ pub struct SelectorPoly {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PoASetup {
+pub struct PoAPrecompute {
     pub interpolate_selector: String,
     pub proving_time: String,
     pub verifying_time: String,
@@ -79,4 +79,12 @@ pub struct TrustSetupParams {
 pub struct PoAProverJSON {
     pub params: TrustSetupParams,
     pub selector: SelectorPoly,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PoAReport {
+    pub interpolate_balance_time: String,
+    pub accumulator_proving_time: String,
+    pub verifying_proof_time: String,
+    pub validating_balance_time: String,
 }

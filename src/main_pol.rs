@@ -5,9 +5,7 @@ use std::{
 use ark_poly::domain::EvaluationDomain;
 use ark_std::{test_rng, UniformRand};
 
-use csv::ReaderBuilder;
-
-use crate::{benchmark::{BenchConfig, PoLReport}, proof_of_liability::{prover::Prover, verifier::Verifier}, types::BlsScalarField};
+use crate::{benchmark::{BenchConfig, PoLReport}, proof_of_liability::{prover::Prover, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
 
 pub fn run_pol(bal_path: String, output_dir: String) {
     let (configs, balances) = read_config(bal_path);
@@ -81,12 +79,6 @@ fn read_config(bal_path: String) -> (Vec<BenchConfig>, Vec<u64>) {
     file.read_to_string(&mut buffer).unwrap();
     let configs: Vec<BenchConfig> = serde_json::from_str(&buffer).unwrap();
 
-    let file = File::open(bal_path).unwrap();
-    let mut reader = ReaderBuilder::new().has_headers(false).from_reader(file);
-    let mut balances = Vec::<u64>::new();
-    for result in reader.deserialize() {
-        let record: u64 = result.unwrap();
-        balances.push(record);
-    }
+    let balances = read_balances(&bal_path);
     (configs, balances)
 }

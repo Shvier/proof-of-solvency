@@ -2,8 +2,8 @@ use std::{
     env, io, path::Path
 };
 
-use proof_of_solvency::
-    main_pol::run_pol
+use proof_of_solvency::{main_poa::{post_precompute, precompute_poa, run_poa}, 
+    main_pol::run_pol, proof_of_assets::prover::Prover}
 ;
 
 fn main() {
@@ -42,12 +42,40 @@ fn main() {
         }
         2 => {
             println!("You chose Option 2");
+            let bal_path = &args[1];
+            let num_of_keys: usize = match &args[2].trim().parse() {
+                Ok(num) => *num,
+                Err(_) => {
+                    println!("Unsupported number of keys!");
+                    return;
+                }
+            };
+            run_poa(bal_path, num_of_keys);
         }
         3 => {
             println!("You chose Option 3");
+            let num_of_keys: usize = match &args[1].trim().parse() {
+                Ok(num) => *num,
+                Err(_) => {
+                    println!("Unsupported number of keys!");
+                    return;
+                }
+            };
+            let _ = precompute_poa(num_of_keys);
         }
         4 => {
             println!("You chose Option 4");
+            let bal_path = &args[1];
+            let num_of_keys: usize = match &args[2].trim().parse() {
+                Ok(num) => *num,
+                Err(_) => {
+                    println!("Unsupported number of keys!");
+                    return;
+                }
+            };
+            let prover_json_path = &args[3];
+            let prover = Prover::deserialize_from_json(&prover_json_path);
+            post_precompute(&prover, bal_path, num_of_keys);
         }
         5 => {
             println!("Exiting...");

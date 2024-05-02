@@ -57,7 +57,7 @@ fn test_accumulator() {
         BlsScalarField::from(bal)
     })
     .collect();
-    let bal_poly = Verifier::generate_balance_poly(&balances);
+    let bal_poly = Prover::generate_balance_poly(&balances);
     let prover = Prover::setup(&selector);
     let domain = Radix2EvaluationDomain::<BlsScalarField>::new(prover.domain_size).unwrap();
     let accum_poly = prover.construct_accumulator(&bal_poly, domain);
@@ -103,7 +103,7 @@ fn test_compute_w1_w2() {
         BlsScalarField::rand(rng)
     )
     .collect();
-    let bal_poly = Verifier::generate_balance_poly(&balances);
+    let bal_poly = Prover::generate_balance_poly(&balances);
     let prover = Prover::setup(&selector);
     let domain = Radix2EvaluationDomain::<BlsScalarField>::new(prover.domain_size).unwrap();
     let accum_poly = prover.construct_accumulator(&bal_poly, domain);
