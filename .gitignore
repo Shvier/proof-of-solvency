@@ -19,3 +19,4 @@ Cargo.lock
 # bench_data/*
 # !bench_data/.gitkeep
 bench_data/config.json
+bench_data/proof_of_assets/key_pairs.json

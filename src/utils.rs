@@ -2,12 +2,14 @@ use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr, Variab
 use ark_ff::{FftField, Field, PrimeField};
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10};
-use ark_std::{rand::RngCore, UniformRand, Zero};
+use ark_std::{rand::{Rng, RngCore}, test_rng, UniformRand, Zero};
 use ark_test_curves::secp256k1;
-use num_bigint::BigUint;
+use num_bigint::{BigUint, RandomBits};
 use sha2::{Digest, Sha256};
 
-use std::ops::Mul;
+use std::{fs::{self, File}, io::{BufWriter, Write}, ops::Mul};
+
+use crate::benchmark::{AffinePoint, KeyPair};
 
 pub enum HashBox {
     Secp(secp256k1::G1Projective),
@@ -386,7 +388,6 @@ pub fn incremental_interpolate<F: FftField, D: EvaluationDomain<F>>(
 }
 
 pub fn read_balances(bal_path: &str) -> Vec<u64> {
-    use std::fs::File;
     use csv::ReaderBuilder;
     
     let file = File::open(bal_path).unwrap();
@@ -398,3 +399,27 @@ pub fn read_balances(bal_path: &str) -> Vec<u64> {
     }
     balances
 }
+
+pub fn generate_pk_sk_pairs(num_of_keys: usize) {
+    let mut key_pairs = Vec::<KeyPair>::new();
+    let rng = &mut test_rng();
+    for _ in 0..num_of_keys {
+        let private_key: BigUint = rng.sample(RandomBits::new(256u64));
+        let public_key = secp256k1::G1Affine::generator().mul_bigint(private_key.to_u64_digits()).into_affine();
+        let pair = KeyPair {
+            sk: private_key.to_string(),
+            pk: AffinePoint {
+                x: public_key.x.to_string(),
+                y: public_key.y.to_string(),
+            },
+        };
+        key_pairs.push(pair);
+    }
+    let dir = "./bench_data/proof_of_assets";
+    let _ = fs::create_dir_all(dir);
+    let file = File::create(format!("{}/key_pairs.json", dir)).expect("Failed to create key_pairs json file");
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &key_pairs).expect("Failed to serialize key_pairs json");
+    writer.flush().expect("Failed to write key_pairs json file");
+}
+

@@ -5,7 +5,8 @@ use ark_std::{rand::Rng, test_rng, UniformRand, Zero};
 use ark_ff::Field;
 use num_bigint::{BigUint, RandomBits};
 
-use crate::{proof_of_assets::verifier::Verifier, types::BlsScalarField};
+#[cfg(test)]
+use crate::types::BlsScalarField;
 
 use super::{Prover, UniPoly_381};
 

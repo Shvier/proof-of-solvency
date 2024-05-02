@@ -3,7 +3,7 @@ use std::{
 };
 
 use proof_of_solvency::{main_poa::{post_precompute, precompute_poa, run_poa}, 
-    main_pol::run_pol, proof_of_assets::prover::Prover}
+    main_pol::run_pol, proof_of_assets::prover::Prover, utils::generate_pk_sk_pairs}
 ;
 
 fn main() {
@@ -12,7 +12,8 @@ fn main() {
     println!("2. Run whole Proof-of-Assets");
     println!("3. Run precomputation for Proof-of-Assets");
     println!("4. Run Proof-of-Assets");
-    println!("5. Exit");
+    println!("5. Generate secp256k1 key pairs for Proof-of-Assets");
+    println!("6. Exit");
 
     println!("Enter your choice:");
 
@@ -78,6 +79,17 @@ fn main() {
             post_precompute(&prover, bal_path, num_of_keys);
         }
         5 => {
+            println!("You chose Option 5");
+            let num_of_keys: usize = match &args[1].trim().parse() {
+                Ok(num) => *num,
+                Err(_) => {
+                    println!("Unsupported number of keys!");
+                    return;
+                }
+            };
+            generate_pk_sk_pairs(num_of_keys);
+        }
+        6 => {
             println!("Exiting...");
             return;
         }

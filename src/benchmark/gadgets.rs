@@ -3,13 +3,8 @@ use std::{
     io::{BufWriter, Write},
 };
 
-use ark_ec::{AffineRepr, CurveGroup};
-use ark_std::{rand::{self, Rng}, test_rng};
-use ark_test_curves::secp256k1;
+use ark_std::rand::{self, Rng};
 use csv::Writer;
-use num_bigint::{BigUint, RandomBits};
-
-use crate::benchmark::{AffinePoint, KeyPair};
 
 use super::{BenchConfig, CSVRecord};
 
@@ -28,33 +23,6 @@ fn generate_balances() {
         wtr.serialize(bal).expect("Failed to serialize");
     }
     wtr.flush().expect("Failed to write");
-}
-
-#[cfg(test)]
-const NUM_OF_KEYS: u32 = 2u32.pow(28);
-
-#[test]
-fn generate_pk_sk_pairs() {
-    let mut key_pairs = Vec::<KeyPair>::new();
-    let rng = &mut test_rng();
-    for _ in 0..NUM_OF_KEYS {
-        let private_key: BigUint = rng.sample(RandomBits::new(256u64));
-        let public_key = secp256k1::G1Affine::generator().mul_bigint(private_key.to_u64_digits()).into_affine();
-        let pair = KeyPair {
-            sk: private_key.to_string(),
-            pk: AffinePoint {
-                x: public_key.x.to_string(),
-                y: public_key.y.to_string(),
-            },
-        };
-        key_pairs.push(pair);
-    }
-    let dir = "./bench_data/proof_of_assets";
-    let _ = fs::create_dir_all(dir);
-    let file = File::create(format!("{}/key_pairs.json", dir)).expect("Failed to create key_pairs json file");
-    let mut writer = BufWriter::new(file);
-    serde_json::to_writer(&mut writer, &key_pairs).expect("Failed to serialize key_pairs json");
-    writer.flush().expect("Failed to write key_pairs json file");
 }
 
 #[test]
