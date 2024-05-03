@@ -19,7 +19,7 @@ pub struct PoLReport {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CSVRecord {
+pub struct PoLCSVRecord {
     pub num_of_users: usize,
     pub num_of_bits: usize,
     pub num_of_groups: usize,
@@ -28,6 +28,21 @@ pub struct CSVRecord {
     pub verifying_time: String,
     pub proof_size: String,
     pub timestamp: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PoACSVRecord {
+    pub num_of_keys: usize,
+    pub pre_proving_time: u128,
+    pub pre_verifying_time: u128,
+    pub post_proving_time: u128,
+    pub post_verifying_time: u128,
+}
+
+impl PoACSVRecord {
+    pub fn empty() -> PoACSVRecord {
+        Self { num_of_keys: 0, pre_proving_time: 0, pre_verifying_time: 0, post_proving_time: 0, post_verifying_time: 0 }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -63,9 +78,9 @@ pub struct SelectorPoly {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PoAPrecompute {
-    pub interpolate_selector: String,
-    pub proving_time: String,
-    pub verifying_time: String,
+    pub interpolate_selector: u128,
+    pub proving_time: u128,
+    pub verifying_time: u128,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,8 +99,8 @@ pub struct PoAProverJSON {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PoAReport {
-    pub interpolate_balance_time: String,
-    pub accumulator_proving_time: String,
-    pub verifying_proof_time: String,
-    pub validating_balance_time: String,
+    pub interpolate_balance_time: u128,
+    pub accumulator_proving_time: u128,
+    pub verifying_proof_time: u128,
+    pub validating_balance_time: u128,
 }

@@ -66,10 +66,10 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
     println!("validate balances time: {:.2?}", validating_bal_cost);
 
     let setup = PoAReport {
-        interpolate_balance_time: format!("{:.2?}", interpolate_cost.as_millis()),
-        accumulator_proving_time: format!("{:.2?}", prove_accumulator.as_millis()),
-        verifying_proof_time: format!("{:.2?}", verify_cost.as_millis()),
-        validating_balance_time: format!("{:.2?}", validating_bal_cost.as_millis()),
+        interpolate_balance_time: interpolate_cost.as_millis(),
+        accumulator_proving_time: prove_accumulator.as_millis(),
+        verifying_proof_time: verify_cost.as_millis(),
+        validating_balance_time: validating_bal_cost.as_millis(),
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys/protocol", num_of_keys);
     let _ = fs::create_dir_all(dir.clone());
@@ -110,9 +110,9 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
     let setup_verify_cost = now.elapsed();
     println!("verifying time: {:.2?}", setup_verify_cost);
     let setup = PoAPrecompute {
-        interpolate_selector: format!("{:.2?}", setup_cost.as_millis()),
-        proving_time: format!("{:.2?}", setup_prove_cost.as_millis()),
-        verifying_time: format!("{:.2?}", setup_verify_cost.as_millis()),
+        interpolate_selector: setup_cost.as_millis(),
+        proving_time: setup_prove_cost.as_millis(),
+        verifying_time: setup_verify_cost.as_millis(),
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys", num_of_keys);
     let precompute_dir = dir.clone() + "/precompute";

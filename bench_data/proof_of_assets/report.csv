@@ -1,0 +1,5 @@
+num_of_keys,pre_proving_time,pre_verifying_time,post_proving_time,post_verifying_time
+2048,13105,2365,79,34
+4096,45702,4770,131,76
+8192,159992,9503,231,180
+16384,613470,18513,449,518

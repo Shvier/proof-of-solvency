@@ -1,12 +1,11 @@
 use std::{
-    fs::{self, File},
-    io::{BufWriter, Write},
+    fs::{self, File}, io::{BufWriter, Write}, iter::Sum, ops::Div
 };
 
 use ark_std::rand::{self, Rng};
 use csv::Writer;
 
-use super::{BenchConfig, CSVRecord};
+use super::{BenchConfig, PoLCSVRecord, PoACSVRecord};
 
 #[test]
 fn generate_balances() {
@@ -87,7 +86,7 @@ fn _generate_csv_report_for_pol(
     depth: usize,
     levels: &Vec<&str>,
     prefix: &mut Vec<usize>,
-    records: &mut Vec<CSVRecord>,
+    records: &mut Vec<PoLCSVRecord>,
 ) {
     use std::io::Read;
 
@@ -106,7 +105,7 @@ fn _generate_csv_report_for_pol(
                 let mut buffer = String::new();
                 file.read_to_string(&mut buffer).unwrap();
                 let report: PoLReport = serde_json::from_str(&buffer).unwrap();
-                let record = CSVRecord {
+                let record = PoLCSVRecord {
                     num_of_users: prefix[0],
                     num_of_bits: prefix[1],
                     num_of_groups: prefix[2],
@@ -138,4 +137,98 @@ fn _generate_csv_report_for_pol(
             }
         }
     }
+}
+
+#[test]
+fn generate_csv_report_for_poa() {
+    let mut records = _generate_csv_report_for_poa(
+        "./bench_data/proof_of_assets"
+    );
+    records.sort_by(|a, b| a.num_of_keys.cmp(&b.num_of_keys));
+    let path = "./bench_data/proof_of_assets/report.csv";
+    let mut wtr = Writer::from_path(path).expect("Failed to create file");
+    for record in records {
+        wtr.serialize(record).expect("Failed to serialize");
+    }
+    wtr.flush().expect("Failed to write");
+}
+
+#[cfg(test)]
+fn _generate_csv_report_for_poa(
+    path: &str,
+) -> Vec<PoACSVRecord> {
+    use std::io::Read;
+
+    use crate::benchmark::{PoAPrecompute, PoAReport};
+    let mut records = vec![];
+    let paths = fs::read_dir(path).unwrap();
+    for path in paths {
+        if let Some(path) = path.ok() {
+            if !path.path().is_dir() {
+                continue;
+            }
+            let path_str = path.path().into_os_string().into_string().unwrap().clone();
+            let folder = path.file_name().into_string().unwrap();
+            let mut split = folder.split("keys");
+            let num_of_keys = split.next().unwrap().parse::<usize>().unwrap();
+
+            let mut pre_proving_time = Vec::<u128>::new();
+            let mut pre_verifying_time = Vec::<u128>::new();
+            let mut post_proving_time = Vec::<u128>::new();
+            let mut post_verifying_time = Vec::<u128>::new();
+
+            let paths = fs::read_dir(path_str).unwrap();
+            for path in paths {
+                if let Some(path) = path.ok() {
+                    if !path.path().is_dir() { continue; }
+                    let sub_path = fs::read_dir(path.path().into_os_string()).unwrap();
+                    for file in sub_path {
+                        if let Some(file) = file.ok() {
+                            assert!(file.path().is_file());
+                            let folder_name = path.file_name().into_string().unwrap();
+                            if folder_name == "precompute" {
+                                let mut file = File::open(file.path()).unwrap();
+                                let mut buffer = String::new();
+                                file.read_to_string(&mut buffer).unwrap();
+                                let precompute: PoAPrecompute = serde_json::from_str(&buffer).unwrap();
+                                pre_proving_time.push(precompute.interpolate_selector + precompute.proving_time);
+                                pre_verifying_time.push(precompute.verifying_time);
+                            } else if folder_name == "protocol" {
+                                let mut file = File::open(file.path()).unwrap();
+                                let mut buffer = String::new();
+                                file.read_to_string(&mut buffer).unwrap();
+                                let report: PoAReport = serde_json::from_str(&buffer).unwrap();
+                                post_proving_time.push(report.interpolate_balance_time + report.accumulator_proving_time);
+                                post_verifying_time.push(report.verifying_proof_time + report.validating_balance_time);
+                            } else {
+                                panic!("Invalid folder structure");
+                            }
+                        }
+                    }
+                }
+            }
+            let pre_proving_time = average(&pre_proving_time);
+            let pre_verifying_time = average(&pre_verifying_time);
+            let post_proving_time = average(&post_proving_time);
+            let post_verifying_time = average(&post_verifying_time);
+            let record = PoACSVRecord {
+                num_of_keys,
+                pre_proving_time,
+                pre_verifying_time,
+                post_proving_time,
+                post_verifying_time
+            };
+            records.push(record);
+        }
+    }
+    records
+}
+
+fn average<'v, T>(v: &'v [T]) -> T
+where
+    T: Div<Output = T>,
+    T: From<u16>,
+    T: Sum<&'v T>,
+{
+    v.iter().sum::<T>() / From::from(v.len() as u16)
 }
