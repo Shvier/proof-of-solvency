@@ -24,16 +24,26 @@ Our experimental data. The experiments were conducted on a PC with i9-13900KF an
 
 # Verify the Experiment
 
-For PoA, run the test function named `test_poa` in the file `test_poa.rs`.
+## Run the Protocol
 
-For PoL, execute the following steps:
+1. Compile and build the program `main.rs` by executing `cargo build --release` to build the execution file. Make sure all the dependencies are installed correctly.
+2. On Windows, run the symbolic file `proof_of_solvency.exe`; on Unix-like systems, run the symbolic file `pos` (the program requires some input arguments, the explanation is followed).
+3. Input the desired option as the program's menu displays
+   - Option 1 requires two parameters, one is the file path of the balance CSV, and the other is the output directory, e.g., `./bench_data/proof_of_liability` in our experiments;
+   - Option 2 requires two parameters, one is the file path of the balance CSV, and the other is the number of keys that we want to prove. The file path of the secp256k1 key pairs is fixed, so make sure it exists before running the program.
+   - Option 3 requires one parameter, the number of keys. The program will stop after precomputing is done and output two JSON files, `prover.json` and `selector_commitment.json`. The prover should use these two validated JSON files to run the main protocol.
+   - Option 4 requires three parameters, the file path of the balance CSV, the number of keys, and the file path of `prover.json`.
+   - Option 5 requires one parameter, the number of keys. It will randomly generate some secp256k1 key pairs for test.
 
-1. (**optional**) Delete the folder `bench_data` (our test data).
-2. Run the function `generate_balances` in `gadgets.rs`. Remember to modify `num_of_users` and `upper_bound` (the maximum allowed balance) to the desired values.
-3. Modify `configs` in `generate_config_for_pol` and run this function, which will output a configuration JSON file. Our implementation supports dynamic configuration for `num_of_users`, `num_of_bits` (this should correspond to `upper_bound`), and `num_of_groups`.
-4. Execute `cargo build --release` to build the execution file. Make sure all the dependencies are installed correctly.
-5. On Windows, run the symbolic file `proof_of_solvency.exe`; on Unix-like systems, run the symbolic file `pos`. The execution file needs two inputs:
-   - the file path of `balance.csv` generated in step 2
-   - the output directory, e.g., `./bench_data/proof_of_liability` in our experiments
-6. After getting enough test data, run `generate_csv_report` in `gadgets.rs`, which will output a CSV file recording all the test data from step 5.
-7. (**optional**) We provide a simple visualization script, `visualize_report.py`. It requires the file path of the CSV report from step 6 as the input.
+## Prepare the Experiment Configurations
+
+For PoA
+- Choose `Option 5` after running the program to generate the key pairs
+- Run the function `generate_balances` in `gadgets.rs`. Remember to modify `num_of_users` and `upper_bound` (the maximum allowed balance) to the desired values.
+
+For PoL
+- Run the function `generate_balances` in `gadgets.rs` to generate `balance.csv`.
+- Modify `configs` in `generate_config_for_pol` and run this function, which will output a configuration JSON file. Our implementation supports dynamic configuration for `num_of_users`, `num_of_bits` (this should correspond to `upper_bound`), and `num_of_groups`.
+
+## Generate the Report
+We provide a way to aggregate the output JSON files into a CSV, by simply running the function `generate_csv_report` in `gadgets.rs`. Also, there are two visualization scripts, `visualize_poa.py` and `visualize_pol.py`.
