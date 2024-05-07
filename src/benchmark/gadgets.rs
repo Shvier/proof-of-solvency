@@ -176,6 +176,7 @@ fn _generate_csv_report_for_poa(
             let mut pre_verifying_time = Vec::<u128>::new();
             let mut post_proving_time = Vec::<u128>::new();
             let mut post_verifying_proof_time = Vec::<u128>::new();
+            let mut interpolating_balance_time = Vec::<u128>::new();
             let mut post_validating_balance_time = Vec::<u128>::new();
 
             let paths = fs::read_dir(path_str).unwrap();
@@ -199,8 +200,9 @@ fn _generate_csv_report_for_poa(
                                 let mut buffer = String::new();
                                 file.read_to_string(&mut buffer).unwrap();
                                 let report: PoAReport = serde_json::from_str(&buffer).unwrap();
-                                post_proving_time.push(report.interpolate_balance_time + report.accumulator_proving_time);
+                                post_proving_time.push(report.accumulator_proving_time);
                                 post_verifying_proof_time.push(report.verifying_proof_time);
+                                interpolating_balance_time.push(report.interpolate_balance_time);
                                 post_validating_balance_time.push(report.validating_balance_time);
                             } else {
                                 panic!("Invalid folder structure");
@@ -213,6 +215,7 @@ fn _generate_csv_report_for_poa(
             let pre_verifying_time = average(&pre_verifying_time);
             let post_proving_time = average(&post_proving_time);
             let post_verifying_proof_time = average(&post_verifying_proof_time);
+            let interpolating_balance_time = average(&interpolating_balance_time);
             let post_validating_balance_time = average(&post_validating_balance_time);
             let record = PoACSVRecord {
                 num_of_keys,
@@ -220,6 +223,7 @@ fn _generate_csv_report_for_poa(
                 pre_verifying_time,
                 post_proving_time,
                 post_verifying_proof_time,
+                interpolating_balance_time,
                 post_validating_balance_time,
             };
             records.push(record);
