@@ -7,7 +7,7 @@ use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
 use sha2::{Digest, Sha256};
 
-use std::{fs::{self, File}, io::{BufWriter, Write}, ops::Mul};
+use std::{fs::{self, File}, io::{BufWriter, Write}, iter::Sum, mem::size_of, ops::{Div, Mul}};
 
 use crate::benchmark::{AffinePoint, KeyPair};
 
@@ -256,6 +256,17 @@ pub struct BatchCheckProof<E: Pairing> {
     pub gammas: Vec<E::ScalarField>,
 }
 
+impl<E: Pairing> BatchCheckProof<E> {
+    pub fn deep_size(&self) -> usize {
+        let num_of_comms: usize = self.commitments.iter().map(| row | row.len()).sum();
+        let num_of_open_evals: usize = self.open_evals.iter().map( | row| row.len()).sum();
+        size_of::<Commitment<E>>() * num_of_comms
+            + size_of::<E::G1>() * self.witnesses.len()
+            + size_of::<E::ScalarField>() * (self.points.len() + self.gammas.len())
+            + size_of::<OpenEval<E>>() * num_of_open_evals
+    }
+}
+
 // the batched KZG opening scheme in [GWC19]
 pub fn batch_check<E: Pairing, R: RngCore>(
     vk: &VerifierKey<E>,
@@ -423,3 +434,11 @@ pub fn generate_pk_sk_pairs(num_of_keys: usize) {
     writer.flush().expect("Failed to write key_pairs json file");
 }
 
+pub fn average<'v, T>(v: &'v [T]) -> T
+where
+    T: Div<Output = T>,
+    T: From<u16>,
+    T: Sum<&'v T>,
+{
+    v.iter().sum::<T>() / From::from(v.len() as u16)
+}

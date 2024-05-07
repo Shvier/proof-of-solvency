@@ -104,4 +104,5 @@ pub struct PoAReport {
     pub accumulator_proving_time: u128,
     pub verifying_proof_time: u128,
     pub validating_balance_time: u128,
+    pub proof_size: usize,
 }

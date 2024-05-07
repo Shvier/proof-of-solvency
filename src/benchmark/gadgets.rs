@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File}, io::{BufWriter, Write}, iter::Sum, ops::Div
+    fs::{self, File}, io::{BufWriter, Write}
 };
 
 use ark_std::rand::{self, Rng};
@@ -159,7 +159,7 @@ fn _generate_csv_report_for_poa(
 ) -> Vec<PoACSVRecord> {
     use std::io::Read;
 
-    use crate::benchmark::{PoAPrecompute, PoAReport};
+    use crate::{benchmark::{PoAPrecompute, PoAReport}, utils::average};
     let mut records = vec![];
     let paths = fs::read_dir(path).unwrap();
     for path in paths {
@@ -226,13 +226,4 @@ fn _generate_csv_report_for_poa(
         }
     }
     records
-}
-
-fn average<'v, T>(v: &'v [T]) -> T
-where
-    T: Div<Output = T>,
-    T: From<u16>,
-    T: Sum<&'v T>,
-{
-    v.iter().sum::<T>() / From::from(v.len() as u16)
 }

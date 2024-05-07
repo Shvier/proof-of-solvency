@@ -151,7 +151,7 @@ impl Verifier {
         powers: &Powers<Bls12_381>,
         commitment: &Commitment<Bls12_381>,
         bal_poly: &DensePolynomial<BlsScalarField>,
-        randomness_bal_poly: Randomness<BlsScalarField, UniPoly_381>,
+        randomness_bal_poly: &Randomness<BlsScalarField, UniPoly_381>,
         omega: BlsScalarField,
         num_of_keys: usize,
         balances: Vec<BlsScalarField>,

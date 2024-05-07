@@ -55,7 +55,7 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
     let cm_bal = &assets_proof.batch_check_proof.commitments[0][1];
 
     let now = Instant::now();
-    Verifier::validate_balance_poly(&prover.powers, cm_bal, &bal_poly, assets_proof.randomness_bal_poly, prover.omega, num_of_keys, balances);
+    Verifier::validate_balance_poly(&prover.powers, cm_bal, &bal_poly, &assets_proof.randomness_bal_poly, prover.omega, num_of_keys, balances);
     let validating_bal_cost = now.elapsed();
     println!("validate balances time: {:.2?}", validating_bal_cost);
 
@@ -64,6 +64,7 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
         accumulator_proving_time: prove_accumulator.as_millis(),
         verifying_proof_time: verify_cost.as_millis(),
         validating_balance_time: validating_bal_cost.as_millis(),
+        proof_size: assets_proof.deep_size() / 1000,
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys/protocol", num_of_keys);
     let _ = fs::create_dir_all(dir.clone());

@@ -7,9 +7,9 @@ use ark_std::{rand::RngCore, test_rng, Zero, One};
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
-use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, ops::Mul, sync::{Arc, Mutex}, thread, time::Instant};
+use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, mem::size_of, ops::Mul, sync::{Arc, Mutex}, thread, time::Instant};
 
-use crate::{benchmark::{AffinePoint, AffineQuadExt, AffineQuadExtPoint, PoAProverJSON, SelectorPoly, TrustSetupParams}, types::{BlsScalarField, UniPoly_381}, utils::{batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
+use crate::{benchmark::{AffinePoint, AffineQuadExt, AffineQuadExtPoint, PoAProverJSON, SelectorPoly, TrustSetupParams}, types::{BlsScalarField, UniPoly_381}, utils::{average, batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
 use super::sigma::{SigmaProtocol, SigmaProtocolProof};
 
@@ -29,6 +29,14 @@ pub struct AssetsProof {
     pub omega: BlsScalarField,
     pub domain_size: usize,
     pub randomness_bal_poly: Randomness<BlsScalarField, UniPoly_381>,
+}
+
+impl AssetsProof {
+    pub fn deep_size(&self) -> usize {
+        self.batch_check_proof.deep_size()
+            + size_of::<<Bls12_381 as Pairing>::G1Affine>()
+            + size_of::<Randomness<BlsScalarField, UniPoly_381>>()
+    }
 }
 
 pub struct Prover<'a> {
@@ -344,6 +352,7 @@ impl Prover<'_> {
         let omega = &self.omega;
         let selector = &self.selector;
         let mut proofs = Vec::<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)>::new();
+        let mut times = Vec::<u128>::new();
         for i in 0..selector.len() {
             let now = Instant::now();
             println!("Generate proof {}", i);
@@ -353,9 +362,12 @@ impl Prover<'_> {
             let point = omega.pow(&[i as u64]);
             let pc_proof = self.open(&self.poly, point, &randomness);
             let sigma_proof = self.sigma.generate_proof(pk, pc_proof.rand.into_bigint().into(), s, sk.clone());
-            println!("Proof {} is generated: {:.2?}", i, now.elapsed());
+            let elapsed = now.elapsed().as_millis();
+            println!("Proof {} is generated: {}", i, elapsed);
+            times.push(elapsed);
             proofs.push((cm, pc_proof, sigma_proof, i))
         }
+        println!("average time: {}", average(&times));
         proofs
     }
 
