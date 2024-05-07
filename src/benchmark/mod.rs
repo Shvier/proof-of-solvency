@@ -33,6 +33,7 @@ pub struct PoLCSVRecord {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PoACSVRecord {
     pub num_of_keys: usize,
+    pub interpolate_selector_time: u128,
     pub pre_proving_time: u128,
     pub pre_verifying_time: u128,
     pub post_proving_time: u128,
@@ -43,7 +44,7 @@ pub struct PoACSVRecord {
 
 impl PoACSVRecord {
     pub fn empty() -> PoACSVRecord {
-        Self { num_of_keys: 0, pre_proving_time: 0, pre_verifying_time: 0, post_proving_time: 0, post_verifying_proof_time: 0, interpolating_balance_time: 0, post_validating_balance_time: 0 }
+        Self { num_of_keys: 0, interpolate_selector_time: 0, pre_proving_time: 0, pre_verifying_time: 0, post_proving_time: 0, post_verifying_proof_time: 0, interpolating_balance_time: 0, post_validating_balance_time: 0 }
     }
 }
 

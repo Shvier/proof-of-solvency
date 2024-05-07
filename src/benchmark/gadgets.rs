@@ -159,7 +159,7 @@ fn _generate_csv_report_for_poa(
 ) -> Vec<PoACSVRecord> {
     use std::io::Read;
 
-    use crate::{benchmark::{PoAPrecompute, PoAReport}, utils::average};
+    use crate::benchmark::{PoAPrecompute, PoAReport};
     let mut records = vec![];
     let paths = fs::read_dir(path).unwrap();
     for path in paths {
@@ -172,61 +172,36 @@ fn _generate_csv_report_for_poa(
             let mut split = folder.split("keys");
             let num_of_keys = split.next().unwrap().parse::<usize>().unwrap();
 
-            let mut pre_proving_time = Vec::<u128>::new();
-            let mut pre_verifying_time = Vec::<u128>::new();
-            let mut post_proving_time = Vec::<u128>::new();
-            let mut post_verifying_proof_time = Vec::<u128>::new();
-            let mut interpolating_balance_time = Vec::<u128>::new();
-            let mut post_validating_balance_time = Vec::<u128>::new();
-
-            let paths = fs::read_dir(path_str).unwrap();
-            for path in paths {
-                if let Some(path) = path.ok() {
-                    if !path.path().is_dir() { continue; }
-                    let sub_path = fs::read_dir(path.path().into_os_string()).unwrap();
-                    for file in sub_path {
-                        if let Some(file) = file.ok() {
-                            assert!(file.path().is_file());
-                            let folder_name = path.file_name().into_string().unwrap();
-                            if folder_name == "precompute" {
-                                let mut file = File::open(file.path()).unwrap();
-                                let mut buffer = String::new();
-                                file.read_to_string(&mut buffer).unwrap();
-                                let precompute: PoAPrecompute = serde_json::from_str(&buffer).unwrap();
-                                pre_proving_time.push(precompute.interpolate_selector + precompute.proving_time);
-                                pre_verifying_time.push(precompute.verifying_time);
-                            } else if folder_name == "protocol" {
-                                let mut file = File::open(file.path()).unwrap();
-                                let mut buffer = String::new();
-                                file.read_to_string(&mut buffer).unwrap();
-                                let report: PoAReport = serde_json::from_str(&buffer).unwrap();
-                                post_proving_time.push(report.accumulator_proving_time);
-                                post_verifying_proof_time.push(report.verifying_proof_time);
-                                interpolating_balance_time.push(report.interpolate_balance_time);
-                                post_validating_balance_time.push(report.validating_balance_time);
-                            } else {
-                                panic!("Invalid folder structure");
-                            }
-                        }
-                    }
+            let pre_folder = fs::read_dir(path_str.clone() + "/precompute").unwrap();
+            let post_folder = fs::read_dir(path_str.clone() + "/protocol").unwrap();
+            for (pre, post)  in pre_folder.into_iter().zip(post_folder) {
+                if !pre.is_ok() || !post.is_ok() {
+                    panic!();
                 }
+                let pre_file = pre.unwrap();
+                let post_file = post.unwrap();
+                let mut file = File::open(pre_file.path()).unwrap();
+                let mut buffer = String::new();
+                file.read_to_string(&mut buffer).unwrap();
+                let precompute: PoAPrecompute = serde_json::from_str(&buffer).unwrap();
+
+                let mut file = File::open(post_file.path()).unwrap();
+                let mut buffer = String::new();
+                file.read_to_string(&mut buffer).unwrap();
+                let report: PoAReport = serde_json::from_str(&buffer).unwrap();
+
+                let record = PoACSVRecord {
+                    num_of_keys,
+                    interpolate_selector_time: precompute.interpolate_selector,
+                    pre_proving_time: precompute.proving_time,
+                    pre_verifying_time: precompute.verifying_time,
+                    post_proving_time: report.accumulator_proving_time,
+                    post_verifying_proof_time: report.verifying_proof_time,
+                    interpolating_balance_time: report.interpolate_balance_time,
+                    post_validating_balance_time: report.validating_balance_time,
+                };
+                records.push(record);
             }
-            let pre_proving_time = average(&pre_proving_time);
-            let pre_verifying_time = average(&pre_verifying_time);
-            let post_proving_time = average(&post_proving_time);
-            let post_verifying_proof_time = average(&post_verifying_proof_time);
-            let interpolating_balance_time = average(&interpolating_balance_time);
-            let post_validating_balance_time = average(&post_validating_balance_time);
-            let record = PoACSVRecord {
-                num_of_keys,
-                pre_proving_time,
-                pre_verifying_time,
-                post_proving_time,
-                post_verifying_proof_time,
-                interpolating_balance_time,
-                post_validating_balance_time,
-            };
-            records.push(record);
         }
     }
     records
