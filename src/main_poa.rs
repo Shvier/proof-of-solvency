@@ -24,7 +24,7 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
         })
         .collect();
     let now = Instant::now();
-    let bal_poly = Prover::generate_balance_poly(&balances);
+    let bal_poly = Verifier::generate_balance_poly(&balances);
     let interpolate_cost = now.elapsed();
     println!("interpolate balances: {:.2?}", interpolate_cost);
 
@@ -55,15 +55,15 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
     let cm_bal = &assets_proof.batch_check_proof.commitments[0][1];
 
     let now = Instant::now();
-    Verifier::validate_balance_poly(&prover.powers, cm_bal, &bal_poly, &assets_proof.randomness_bal_poly, prover.omega, num_of_keys, balances);
+    Verifier::validate_balance_poly(&prover.powers, cm_bal, &bal_poly, &assets_proof.randomness_bal_poly);
     let validating_bal_cost = now.elapsed();
     println!("validate balances time: {:.2?}", validating_bal_cost);
 
     let setup = PoAReport {
-        interpolate_balance_time: interpolate_cost.as_millis(),
-        accumulator_proving_time: prove_accumulator.as_millis(),
-        verifying_proof_time: verify_cost.as_millis(),
-        validating_balance_time: validating_bal_cost.as_millis(),
+        interpolate_balance_time: interpolate_cost.as_micros(),
+        accumulator_proving_time: prove_accumulator.as_micros(),
+        verifying_proof_time: verify_cost.as_micros(),
+        validating_balance_time: validating_bal_cost.as_micros(),
         proof_size: assets_proof.deep_size() / 1000,
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys/protocol", num_of_keys);
@@ -105,9 +105,9 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
     let setup_verify_cost = now.elapsed();
     println!("verifying time: {:.2?}", setup_verify_cost);
     let setup = PoAPrecompute {
-        interpolate_selector: setup_cost.as_millis(),
-        proving_time: setup_prove_cost.as_millis(),
-        verifying_time: setup_verify_cost.as_millis(),
+        interpolate_selector: setup_cost.as_micros(),
+        proving_time: setup_prove_cost.as_micros(),
+        verifying_time: setup_verify_cost.as_micros(),
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys", num_of_keys);
     let precompute_dir = dir.clone() + "/precompute";

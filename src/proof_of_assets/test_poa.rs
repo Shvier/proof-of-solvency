@@ -54,7 +54,7 @@ fn test_poa() {
         BlsScalarField::rand(rng)
     )
     .collect();
-    let bal_poly = Prover::generate_balance_poly(&balances);
+    let bal_poly = Verifier::generate_balance_poly(&balances);
     let gamma = BlsScalarField::rand(rng);
     let (assets_proof, randomness) = prover.prove_accumulator(&bal_poly, gamma, &proofs[0].0);
     assert_eq!(balances.len().checked_next_power_of_two().unwrap(), assets_proof.domain_size);

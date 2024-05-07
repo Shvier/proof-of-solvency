@@ -554,13 +554,6 @@ impl Prover<'_> {
         random_accum)
     }
 
-    pub fn generate_balance_poly(bals: &Vec<BlsScalarField>) -> DensePolynomial<BlsScalarField> {
-        let domain_size = bals.len().checked_next_power_of_two().expect("Unsupported domain size");
-        let domain = Radix2EvaluationDomain::new(domain_size).unwrap();
-        let evaluations = Evaluations::from_vec_and_domain(bals.to_vec(), domain);
-        evaluations.interpolate()
-    }
-
     pub fn prove_balance_poly(
         &self, 
         bal_poly: &DensePolynomial<BlsScalarField>, 

@@ -1,6 +1,6 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial, Radix2EvaluationDomain};
+use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey};
 use ark_ff::Field;
 use ark_std::{rand::RngCore, test_rng, One};
@@ -152,9 +152,6 @@ impl Verifier {
         commitment: &Commitment<Bls12_381>,
         bal_poly: &DensePolynomial<BlsScalarField>,
         randomness_bal_poly: &Randomness<BlsScalarField, UniPoly_381>,
-        omega: BlsScalarField,
-        num_of_keys: usize,
-        balances: Vec<BlsScalarField>,
     ) {
         let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(bal_poly);
 
@@ -169,10 +166,12 @@ impl Verifier {
             &random_witness_coeffs,
         );
         assert_eq!(commitment.0, w.into_affine());
+    }
 
-        for i in 0..num_of_keys {
-            let point = omega.pow(&[i as u64]);
-            assert_eq!(balances[i], bal_poly.evaluate(&point));
-        }
+    pub fn generate_balance_poly(bals: &Vec<BlsScalarField>) -> DensePolynomial<BlsScalarField> {
+        let domain_size = bals.len().checked_next_power_of_two().expect("Unsupported domain size");
+        let domain = Radix2EvaluationDomain::new(domain_size).unwrap();
+        let evaluations = Evaluations::from_vec_and_domain(bals.to_vec(), domain);
+        evaluations.interpolate()
     }
 }
