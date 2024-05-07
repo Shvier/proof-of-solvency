@@ -1,7 +1,6 @@
 use std::{fs::{self, File}, io::{BufWriter, Read, Write}, time::Instant, str::FromStr};
 
 use ark_bls12_381::G1Affine;
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, Polynomial};
 use ark_poly_commit::kzg10::Commitment;
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use ark_test_curves::secp256k1::{self, Fq};
@@ -53,15 +52,10 @@ pub fn post_precompute(prover: &Prover, bal_path: &str, num_of_keys: usize) {
     let verify_cost = now.elapsed();
     println!("verifying proof time: {:.2?}", verify_cost);
 
-    let domain = Radix2EvaluationDomain::<BlsScalarField>::new(prover.domain_size).unwrap();
-    let itr = domain.elements();
-    let mut i = 0;
+    let cm_bal = &assets_proof.batch_check_proof.commitments[0][1];
+
     let now = Instant::now();
-    for point in itr.take(num_of_keys) {
-        let eval = bal_poly.evaluate(&point);
-        assert_eq!(eval, balances[i]);
-        i += 1;
-    }
+    Verifier::validate_balance_poly(&prover.powers, cm_bal, &bal_poly, assets_proof.randomness_bal_poly, prover.omega, num_of_keys, balances);
     let validating_bal_cost = now.elapsed();
     println!("validate balances time: {:.2?}", validating_bal_cost);
 

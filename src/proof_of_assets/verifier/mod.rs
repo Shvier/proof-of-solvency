@@ -1,14 +1,14 @@
 use ark_bls12_381::Bls12_381;
-use ark_ec::{pairing::Pairing, AffineRepr};
+use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};
 use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial, Radix2EvaluationDomain};
-use ark_poly_commit::kzg10::{Commitment, VerifierKey};
+use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey};
 use ark_ff::Field;
 use ark_std::{rand::RngCore, test_rng, One};
 use ark_test_curves::secp256k1;
 
 use std::ops::Mul;
 
-use crate::{proof_of_assets::sigma::SigmaProtocol, types::BlsScalarField, utils::{batch_check, calculate_hash, BatchCheckProof, HashBox, OpenEval}};
+use crate::{proof_of_assets::sigma::SigmaProtocol, types::{BlsScalarField, UniPoly_381}, utils::{batch_check, calculate_hash, convert_to_bigints, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox, OpenEval}};
 
 use super::{prover::{AssetsProof, PolyCommitProof}, sigma::SigmaProtocolProof};
 
@@ -110,5 +110,69 @@ impl Verifier {
         assert_eq!(w_tau, q_tau_times_zed_tau);
         
         batch_check(vk, &proof.batch_check_proof, rng);
+    }
+
+    pub fn validate_balance_proofs(
+        vk: &VerifierKey<Bls12_381>,
+        commitment: &Commitment<Bls12_381>,
+        proofs: &Vec<PolyCommitProof>,
+        balances: Vec<BlsScalarField>,
+        points: Vec<BlsScalarField>,
+    ) {
+        let rng = &mut test_rng();
+
+        let mut commitments = Vec::<Vec<Commitment<Bls12_381>>>::new();
+        let mut witnesses = Vec::<<Bls12_381 as Pairing>::G1>::new();
+        let mut open_evals = Vec::<Vec<OpenEval<Bls12_381>>>::new();
+        let gammas = vec![BlsScalarField::one(); proofs.len()];
+
+        let mut i = 0;
+        for proof in proofs {
+            commitments.push(vec![*commitment]);
+            witnesses.push(proof.witness.into_group());
+            open_evals.push(vec![OpenEval::Plain(balances[i], proof.rand)]);
+            i += 1;
+        }
+
+        batch_check(
+            vk, 
+            &BatchCheckProof { 
+                commitments, 
+                witnesses, 
+                points, 
+                open_evals, 
+                gammas 
+            }, 
+            rng
+        );
+    }
+
+    pub fn validate_balance_poly(
+        powers: &Powers<Bls12_381>,
+        commitment: &Commitment<Bls12_381>,
+        bal_poly: &DensePolynomial<BlsScalarField>,
+        randomness_bal_poly: Randomness<BlsScalarField, UniPoly_381>,
+        omega: BlsScalarField,
+        num_of_keys: usize,
+        balances: Vec<BlsScalarField>,
+    ) {
+        let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(bal_poly);
+
+        let mut w = <Bls12_381 as Pairing>::G1::msm_bigint(
+            &powers.powers_of_g[num_leading_zeros..],
+            &witness_coeffs,
+        );
+
+        let random_witness_coeffs = convert_to_bigints(&randomness_bal_poly.blinding_polynomial.coeffs());
+        w += &<<Bls12_381 as Pairing>::G1 as VariableBaseMSM>::msm_bigint(
+            &powers.powers_of_gamma_g,
+            &random_witness_coeffs,
+        );
+        assert_eq!(commitment.0, w.into_affine());
+
+        for i in 0..num_of_keys {
+            let point = omega.pow(&[i as u64]);
+            assert_eq!(balances[i], bal_poly.evaluate(&point));
+        }
     }
 }

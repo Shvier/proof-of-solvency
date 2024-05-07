@@ -28,6 +28,7 @@ pub struct AssetsProof {
     pub committed_assets: <Bls12_381 as Pairing>::G1Affine,
     pub omega: BlsScalarField,
     pub domain_size: usize,
+    pub randomness_bal_poly: Randomness<BlsScalarField, UniPoly_381>,
 }
 
 pub struct Prover<'a> {
@@ -536,6 +537,7 @@ impl Prover<'_> {
             committed_assets: open_evals_3[0].borrow().into_committed_value(),
             omega: self.omega,
             domain_size: self.domain_size,
+            randomness_bal_poly: random_bal,
         },
         random_accum)
     }
@@ -545,5 +547,20 @@ impl Prover<'_> {
         let domain = Radix2EvaluationDomain::new(domain_size).unwrap();
         let evaluations = Evaluations::from_vec_and_domain(bals.to_vec(), domain);
         evaluations.interpolate()
+    }
+
+    pub fn prove_balance_poly(
+        &self, 
+        bal_poly: &DensePolynomial<BlsScalarField>, 
+        randomness: &Randomness<BlsScalarField, UniPoly_381>, 
+        num_of_keys: usize
+    ) -> Vec<PolyCommitProof> {
+        let proofs: Vec<PolyCommitProof> = (0..num_of_keys).into_iter()
+            .map(| i | {
+                let point = self.omega.pow(&[i as u64]);
+                self.open(bal_poly, point, randomness)
+            })
+            .collect();
+        proofs
     }
 }
