@@ -132,15 +132,15 @@ impl<E: Pairing> Intermediate<E> {
         let p1 = &polys[1];
         let mut w2 = p0 - p1;
         let domain_size = domain.size;
+        let zed = DenseOrSparsePolynomial::from(domain.vanishing_polynomial());
         let omega =
             E::ScalarField::get_root_of_unity(domain_size).expect("Unsupported domain size");
-        for idx in 0..domain_size - 1 {
-            let point = omega.pow(&[idx]);
-            let linear_term = DensePolynomial::<E::ScalarField>::from_coefficients_vec(
-                [-point, E::ScalarField::one()].to_vec(),
-            );
-            w2 = &w2 * &linear_term;
-        }
+        let x_minus_last_omega = DensePolynomial::<E::ScalarField>::from_coefficients_vec(
+            [-omega.pow(&[domain_size - 1]), E::ScalarField::one()].to_vec(),
+        );
+        let (q, r) = zed.divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
+        assert!(r.is_zero());
+        w2 = &w2 * &q;
         w2
     }
 

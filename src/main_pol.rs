@@ -18,9 +18,9 @@ pub fn run_pol(bal_path: String, output_dir: String) {
         let bals = balances[0..config.num_of_users].to_vec();
         let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
         let report = PoLReport {
-            interpolation_time: format!("{:.2?}", time1.as_millis()),
-            proving_time: format!("{:.2?}", time2.as_millis()),
-            verifying_time: format!("{:.2?}", time3.as_millis()),
+            interpolation_time: time1.as_micros(),
+            proving_time: time2.as_micros(),
+            verifying_time: time3.as_micros(),
             proof_size: format!("{}", proof_size / 1000),
         };
         let json_path =

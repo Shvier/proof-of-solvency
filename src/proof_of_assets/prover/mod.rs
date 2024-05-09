@@ -362,7 +362,7 @@ impl Prover<'_> {
             let point = omega.pow(&[i as u64]);
             let pc_proof = self.open(&self.poly, point, &randomness);
             let sigma_proof = self.sigma.generate_proof(pk, pc_proof.rand.into_bigint().into(), s, sk.clone());
-            let elapsed = now.elapsed().as_millis();
+            let elapsed = now.elapsed().as_micros();
             println!("Proof {} is generated: {}", i, elapsed);
             times.push(elapsed);
             proofs.push((cm, pc_proof, sigma_proof, i))

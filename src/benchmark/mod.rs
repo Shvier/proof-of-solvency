@@ -12,9 +12,9 @@ pub struct BenchConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct PoLReport {
-    pub interpolation_time: String,
-    pub proving_time: String,
-    pub verifying_time: String,
+    pub interpolation_time: u128,
+    pub proving_time: u128,
+    pub verifying_time: u128,
     pub proof_size: String,
 }
 
@@ -23,9 +23,9 @@ pub struct PoLCSVRecord {
     pub num_of_users: usize,
     pub num_of_bits: usize,
     pub num_of_groups: usize,
-    pub interpolation_time: String,
-    pub proving_time: String,
-    pub verifying_time: String,
+    pub interpolation_time: u128,
+    pub proving_time: u128,
+    pub verifying_time: u128,
     pub proof_size: String,
     pub timestamp: String,
 }
