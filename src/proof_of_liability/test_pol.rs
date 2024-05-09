@@ -1,5 +1,6 @@
-use ark_std::{rand::{distributions::Uniform, Rng}, test_rng, UniformRand, One};
-use ark_poly::{Polynomial, EvaluationDomain};
+use ark_std::{rand::{distributions::Uniform, Rng}, test_rng, UniformRand, One, Zero};
+use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
+use ark_ff::Field;
 
 use std::ops::Mul;
 
@@ -36,7 +37,17 @@ fn test_pol() {
         let hiding = rand_sigma_p0.blinding_polynomial.evaluate(&BlsScalarField::one());
         let liability = prover.vk.g.mul(sum_bals) + prover.vk.gamma_g.mul(hiding);
         assert_eq!(liability, proof.sigma_p0_eval.into_committed_value());
-        Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, rng);
+        let qs: Vec<_> = proof.intermediate_proofs.iter()
+            .map(| proof | {
+                let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
+                let x_minus_last_omega = DensePolynomial::<BlsScalarField>::from_coefficients_vec(vec![-last, BlsScalarField::one()]);
+                let zed = proof.domain.vanishing_polynomial();
+                let (q, r) = DenseOrSparsePolynomial::from(zed).divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
+                assert!(r.is_zero());
+                q
+            })
+            .collect();
+        Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, &qs, rng);
     };
 
     println!("====================================");

@@ -1,8 +1,9 @@
+use std::sync::Arc;
 use std::time::Instant;
 use std::ops::AddAssign;
 
 use ark_bls12_381::Bls12_381;
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Polynomial};
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Polynomial};
 use ark_poly_commit::{kzg10::{Commitment, VerifierKey}, PCCommitment};
 use ark_std::{rand::RngCore, test_rng, One, Zero};
 use ark_ff::Field;
@@ -22,6 +23,7 @@ impl Verifier {
         proof: IntermediateProof<Bls12_381>,
         tau: BlsScalarField,
         gamma: BlsScalarField,
+        q: &DensePolynomial<BlsScalarField>,
         rng: &mut R,
     ) {
         let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
@@ -39,8 +41,6 @@ impl Verifier {
         let x_minus_last_omega_tau = x_minus_last_omega.evaluate(&tau);
         let w1_tau = (p0_tau - p0_tau_omega - p1_tau) * x_minus_last_omega_tau;
 
-        let (q, r) = DenseOrSparsePolynomial::from(zed).divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
-        assert!(r.is_zero());
         let q_tau = q.evaluate(&tau);
         let w2_tau = (p0_tau - p1_tau) * q_tau;
 
@@ -83,6 +83,7 @@ impl Verifier {
         proof: LiabilityProof,
         taus: &Vec<BlsScalarField>,
         gamma: BlsScalarField,
+        qs: &Vec<DensePolynomial<BlsScalarField>>,
         rng: &mut R,
     ) {
         let now = Instant::now();
@@ -104,15 +105,17 @@ impl Verifier {
 
         let elapsed = now.elapsed();
         println!("The committed liability checking passed: {:.2?}", elapsed);
+        let qs = Arc::new(qs.clone());
 
         let now = Instant::now();
         println!("Start verifying the intermediate proofs");
         thread::scope(| s | {
-            let mut i = 1usize;
+            let mut i = 0usize;
             for (inter_proof, tau) in proof.intermediate_proofs.into_iter().zip(taus) {            
+                let qs = qs.clone();
                 s.spawn(move | _ | {
                     let rng = &mut test_rng();
-                    Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, rng);
+                    Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, &qs[i], rng);
                     println!("The intermediate proof {} checking passed", i);
                 });
                 i += 1;
