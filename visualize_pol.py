@@ -157,20 +157,54 @@ def compare_proof_time(num_of_bits):
     fig.suptitle('# of Bits = 2^{}'.format(num_of_bits))
     plt.show()
 
-i = 8
-while i <= max_allowed_bits:
-    show_proof_time_by(i)
-    i = i * 2
+# i = 8
+# while i <= max_allowed_bits:
+#     show_proof_time_by(i)
+#     i = i * 2
 
-i = 8
-while i <= max_allowed_bits:
-    show_performance_by_num_of_bits(i)
-    i = i * 2
+# i = 8
+# while i <= max_allowed_bits:
+#     show_performance_by_num_of_bits(i)
+#     i = i * 2
 
-for power in powers_range:
-    show_performance_by(power)
+# for power in powers_range:
+#     show_performance_by(power)
 
-i = 8
-while i <= max_allowed_bits:
-    compare_proof_time(i)
-    i = i * 2
+# i = 8
+# while i <= max_allowed_bits:
+#     compare_proof_time(i)
+#     i = i * 2
+
+def average(df):
+    new_df = pd.DataFrame(columns=df.columns)
+    for column in df.columns:
+        if len(df[column].values) <= 1:
+            new_df[column] = df[column]
+            continue
+        idxmax = df[column].idxmax()
+        idxmin = df[column].idxmin()
+        new_df[column] = df[column].drop([idxmax, idxmin])
+    average = (new_df.mean() / 1000).round(2)
+    return average
+
+def show_performance(num_of_bits):
+    num_of_users_df = df['num_of_users'].drop_duplicates().sort_values()
+    proving_time_df = []
+    verifying_time_df = []
+    for num_of_user in num_of_users_df.values:
+        filtered_df = df.query('num_of_users == {} and num_of_bits == {}'.format(num_of_user, num_of_bits)).drop(columns=['timestamp']).sort_values('num_of_users')
+        filtered_df = average(filtered_df)
+        proving_time_df.append(add_vec(filtered_df['committing_time'], filtered_df['proving_time']))
+        verifying_time_df.append(filtered_df['verifying_time'])
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    axs[0].plot(num_of_users_df, proving_time_df)
+    axs[0].set_xlabel('# Users')
+    axs[0].set_ylabel('Proving Time (ms)')
+    axs[1].plot(num_of_users_df, verifying_time_df)
+    axs[1].set_ylim([0, 20])
+    axs[1].set_xlabel('# Users')
+    axs[1].set_ylabel('Verifying Time (ms)')
+    fig.suptitle('# bits = 2^{}'.format(num_of_bits))
+    plt.show()
+
+show_performance(64)
