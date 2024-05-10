@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Instant;
 use std::ops::AddAssign;
 
@@ -23,7 +22,6 @@ impl Verifier {
         proof: IntermediateProof<Bls12_381>,
         tau: BlsScalarField,
         gamma: BlsScalarField,
-        q: &DensePolynomial<BlsScalarField>,
         rng: &mut R,
     ) {
         let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
@@ -41,7 +39,7 @@ impl Verifier {
         let x_minus_last_omega_tau = x_minus_last_omega.evaluate(&tau);
         let w1_tau = (p0_tau - p0_tau_omega - p1_tau) * x_minus_last_omega_tau;
 
-        let q_tau = q.evaluate(&tau);
+        let q_tau = zed_tau / x_minus_last_omega_tau;
         let w2_tau = (p0_tau - p1_tau) * q_tau;
 
         let pm_tau = evals_at_tau[evals_at_tau.len() - 2].into_plain_value().0;
@@ -83,7 +81,6 @@ impl Verifier {
         proof: LiabilityProof,
         taus: &Vec<BlsScalarField>,
         gamma: BlsScalarField,
-        qs: &Vec<DensePolynomial<BlsScalarField>>,
         rng: &mut R,
     ) {
         let now = Instant::now();
@@ -105,17 +102,15 @@ impl Verifier {
 
         let elapsed = now.elapsed();
         println!("The committed liability checking passed: {:.2?}", elapsed);
-        let qs = Arc::new(qs.clone());
 
         let now = Instant::now();
         println!("Start verifying the intermediate proofs");
         thread::scope(| s | {
             let mut i = 0usize;
             for (inter_proof, tau) in proof.intermediate_proofs.into_iter().zip(taus) {            
-                let qs = qs.clone();
                 s.spawn(move | _ | {
                     let rng = &mut test_rng();
-                    Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, &qs[i], rng);
+                    Self::validate_intermediate_proof(vk, inter_proof, *tau, gamma, rng);
                     println!("The intermediate proof {} checking passed", i);
                 });
                 i += 1;

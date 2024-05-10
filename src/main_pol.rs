@@ -2,9 +2,8 @@ use std::{
     fs::{self, File}, io::{BufWriter, Read, Write}, time::{Duration, Instant}
 };
 
-use ark_poly::{domain::EvaluationDomain, univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial};
-use ark_std::{test_rng, UniformRand, Zero, One};
-use ark_ff::Field;
+use ark_poly::EvaluationDomain;
+use ark_std::{test_rng, UniformRand};
 
 use crate::{benchmark::{BenchConfig, PoLReport}, proof_of_liability::{prover::Prover, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
 
@@ -19,7 +18,7 @@ pub fn run_pol(bal_path: String, output_dir: String) {
         let bals = balances[0..config.num_of_users].to_vec();
         let (proof_size, time1, time2, time3) = _run_pol(&config, &bals);
         let report = PoLReport {
-            interpolation_time: time1.as_micros(),
+            committing_time: time1.as_micros(),
             proving_time: time2.as_micros(),
             verifying_time: time3.as_micros(),
             proof_size: format!("{}", proof_size / 1000),
@@ -49,18 +48,8 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
             let (proof, _) = prover.generate_proof(&inters, &comms, &rands, &taus, rng);
             let proof_size = proof.deep_size();
             let elapsed2 = now.elapsed();
-            let qs: Vec<_> = proof.intermediate_proofs.iter()
-                .map(| proof | {
-                    let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
-                    let x_minus_last_omega = DensePolynomial::<BlsScalarField>::from_coefficients_vec(vec![-last, BlsScalarField::one()]);
-                    let zed = proof.domain.vanishing_polynomial();
-                    let (q, r) = DenseOrSparsePolynomial::from(zed).divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
-                    assert!(r.is_zero());
-                    q
-                })
-                .collect();
             let now = Instant::now();
-            Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, &qs, rng);
+            Verifier::validate_liability_proof(&prover.vk, proof.clone(), &taus, gamma, rng);
             let elapsed3 = now.elapsed();
             (proof_size, elapsed1, elapsed2, elapsed3)
         }
@@ -76,18 +65,8 @@ fn _run_pol(config: &BenchConfig, balances: &Vec<u64>) -> (usize, Duration, Dura
             let (proof, _) = prover.concurrent_generate_proof(&inters, &comms, &rands, &taus);
             let proof_size = proof.deep_size();
             let elapsed2 = now.elapsed();
-            let qs: Vec<_> = proof.intermediate_proofs.iter()
-                .map(| proof | {
-                    let last = proof.omega.pow(&[(proof.domain.size - 1) as u64]);
-                    let x_minus_last_omega = DensePolynomial::<BlsScalarField>::from_coefficients_vec(vec![-last, BlsScalarField::one()]);
-                    let zed = proof.domain.vanishing_polynomial();
-                    let (q, r) = DenseOrSparsePolynomial::from(zed).divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
-                    assert!(r.is_zero());
-                    q
-                })
-                .collect();
             let now = Instant::now();
-            Verifier::validate_liability_proof(&prover.vk, proof, &taus, gamma, &qs, rng);
+            Verifier::validate_liability_proof(&prover.vk, proof, &taus, gamma, rng);
             let elapsed3 = now.elapsed();
             (proof_size, elapsed1, elapsed2, elapsed3)
         }

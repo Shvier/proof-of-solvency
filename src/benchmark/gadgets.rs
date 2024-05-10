@@ -26,33 +26,13 @@ fn generate_balances() {
 
 #[test]
 fn generate_config_for_pol() {
-    let power = 18;
+    let power = 20;
     let configs = vec![
         BenchConfig {
             num_of_users: 2usize.pow(power),
             num_of_bits: 64,
-            num_of_groups: 2048,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(power),
-            num_of_bits: 64,
-            num_of_groups: 512,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(power),
-            num_of_bits: 64,
-            num_of_groups: 128,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(power),
-            num_of_bits: 64,
-            num_of_groups: 8,
-        },
-        BenchConfig {
-            num_of_users: 2usize.pow(power),
-            num_of_bits: 64,
-            num_of_groups: 2,
-        },
+            num_of_groups: 1,
+        }
     ];
     let file = File::create("./bench_data/proof_of_liability/config.json").expect("Failed to create config json file");
     let mut writer = BufWriter::new(file);
@@ -109,7 +89,7 @@ fn _generate_csv_report_for_pol(
                     num_of_users: prefix[0],
                     num_of_bits: prefix[1],
                     num_of_groups: prefix[2],
-                    interpolation_time: report.interpolation_time,
+                    committing_time: report.committing_time,
                     proving_time: report.proving_time,
                     verifying_time: report.verifying_time,
                     proof_size: report.proof_size,
