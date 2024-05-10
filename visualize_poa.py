@@ -13,6 +13,7 @@ def average(df):
     new_df = pd.DataFrame(columns=df.columns)
     for column in df.columns:
         if len(df[column].values) <= 1:
+            new_df[column] = df[column]
             continue
         idxmax = df[column].idxmax()
         idxmin = df[column].idxmin()
