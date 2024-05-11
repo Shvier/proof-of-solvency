@@ -1,6 +1,6 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey};
 use ark_ff::Field;
 use ark_std::{rand::RngCore, test_rng, One};
@@ -101,9 +101,8 @@ impl Verifier {
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(proof.domain_size).unwrap();
         let zed = domain.vanishing_polynomial();
         let zed_tau = zed.evaluate(&challenge_point);
-        let zed = DenseOrSparsePolynomial::from(zed);
-        let (quotient, _) = zed.divide_with_q_and_r(&DenseOrSparsePolynomial::from(x_minus_last_omega)).unwrap();
-        w2_tau = w2_tau * quotient.evaluate(&challenge_point);
+        let quotient_tau = zed_tau / x_minus_last_omega_at_tau;
+        w2_tau = w2_tau * quotient_tau;
 
         let w_tau = w1_tau + gamma * w2_tau;
         let q_tau_times_zed_tau = q_tau * &zed_tau;

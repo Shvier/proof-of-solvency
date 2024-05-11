@@ -175,10 +175,12 @@ fn _generate_csv_report_for_poa(
                     interpolate_selector_time: precompute.interpolate_selector,
                     pre_proving_time: precompute.proving_time,
                     pre_verifying_time: precompute.verifying_time,
+                    pre_proof_size: precompute.proof_size,
                     post_proving_time: report.accumulator_proving_time,
                     post_verifying_proof_time: report.verifying_proof_time,
                     interpolating_balance_time: report.interpolate_balance_time,
                     post_validating_balance_time: report.validating_balance_time,
+                    post_proof_size: report.proof_size,
                 };
                 records.push(record);
             }

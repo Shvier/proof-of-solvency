@@ -31,9 +31,8 @@ def show_precomputing():
         filtered_df = average(filtered_df)
         proving_time_df.append(filtered_df['pre_proving_time'])
         verifying_time_df.append(filtered_df['pre_verifying_time'])
-        proof_size_df.append(filtered_df['proof_size'])
+        proof_size_df.append(filtered_df['pre_proof_size'])
 
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))
     axs[0].plot(keys_df, proving_time_df)
     axs[0].set_xlabel('# of Keys')
@@ -41,9 +40,9 @@ def show_precomputing():
     axs[1].plot(keys_df, verifying_time_df)
     axs[1].set_xlabel('# of Keys')
     axs[1].set_ylabel('Verifying Time (ms)')
-    axs[1].plot(keys_df, proof_size_df)
-    axs[1].set_xlabel('# of Keys')
-    axs[1].set_ylabel('Proof Size (KB)')
+    axs[2].plot(keys_df, proof_size_df)
+    axs[2].set_xlabel('# of Keys')
+    axs[2].set_ylabel('Proof Size (KB)')
     fig.suptitle('Precomputing Stage')
     plt.show()
 
