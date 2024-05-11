@@ -1,12 +1,12 @@
-use std::{fs::{self, File}, io::{BufWriter, Read, Write}, time::Instant, str::FromStr};
+use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of, str::FromStr, time::Instant};
 
-use ark_bls12_381::G1Affine;
+use ark_bls12_381::{Bls12_381, G1Affine};
 use ark_poly_commit::kzg10::Commitment;
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use ark_test_curves::secp256k1::{self, Fq};
 use num_bigint::BigUint;
 
-use crate::{benchmark::{AffinePoint, KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::Prover, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
+use crate::{benchmark::{AffinePoint, KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::{PolyCommitProof, Prover}, sigma::SigmaProtocolProof, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
 
 pub fn run_poa(bal_path: &str, num_of_keys: usize) {
     let prover = precompute_poa(num_of_keys);
@@ -104,10 +104,16 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
 
     let setup_verify_cost = now.elapsed();
     println!("verifying time: {:.2?}", setup_verify_cost);
+    let proof_size = (size_of::<Commitment<Bls12_381>>()
+                                + PolyCommitProof::deep_size() 
+                                + SigmaProtocolProof::deep_size() 
+                                + size_of::<usize>())
+                                * proofs.len();
     let setup = PoAPrecompute {
         interpolate_selector: setup_cost.as_micros(),
         proving_time: setup_prove_cost.as_micros(),
         verifying_time: setup_verify_cost.as_micros(),
+        proof_size: proof_size / 1000,
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys", num_of_keys);
     let precompute_dir = dir.clone() + "/precompute";

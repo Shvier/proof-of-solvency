@@ -84,6 +84,7 @@ pub struct PoAPrecompute {
     pub interpolate_selector: u128,
     pub proving_time: u128,
     pub verifying_time: u128,
+    pub proof_size: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

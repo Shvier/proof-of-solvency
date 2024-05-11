@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, mem::size_of};
 
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr};
@@ -24,6 +24,14 @@ pub struct SigmaProtocolProof {
     z1: BigUint,
     z2: BigUint,
     z3: BigUint,
+}
+
+impl SigmaProtocolProof {
+    pub fn deep_size() -> usize {
+        size_of::<secp256k1::G1Projective>()
+            + size_of::<Projective<ark_bls12_381::g1::Config>>() * 2
+            + size_of::<BigUint>() * 6
+    }
 }
 
 impl fmt::Display for SigmaProtocolProof {
