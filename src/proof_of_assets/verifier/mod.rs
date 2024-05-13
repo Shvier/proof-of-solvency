@@ -111,41 +111,6 @@ impl Verifier {
         batch_check(vk, &proof.batch_check_proof, rng);
     }
 
-    pub fn validate_balance_proofs(
-        vk: &VerifierKey<Bls12_381>,
-        commitment: &Commitment<Bls12_381>,
-        proofs: &Vec<PolyCommitProof>,
-        balances: Vec<BlsScalarField>,
-        points: Vec<BlsScalarField>,
-    ) {
-        let rng = &mut test_rng();
-
-        let mut commitments = Vec::<Vec<Commitment<Bls12_381>>>::new();
-        let mut witnesses = Vec::<<Bls12_381 as Pairing>::G1>::new();
-        let mut open_evals = Vec::<Vec<OpenEval<Bls12_381>>>::new();
-        let gammas = vec![BlsScalarField::one(); proofs.len()];
-
-        let mut i = 0;
-        for proof in proofs {
-            commitments.push(vec![*commitment]);
-            witnesses.push(proof.witness.into_group());
-            open_evals.push(vec![OpenEval::Plain(balances[i], proof.rand)]);
-            i += 1;
-        }
-
-        batch_check(
-            vk, 
-            &BatchCheckProof { 
-                commitments, 
-                witnesses, 
-                points, 
-                open_evals, 
-                gammas 
-            }, 
-            rng
-        );
-    }
-
     pub fn validate_balance_poly(
         powers: &Powers<Bls12_381>,
         commitment: &Commitment<Bls12_381>,

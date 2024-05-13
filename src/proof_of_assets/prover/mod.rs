@@ -19,14 +19,13 @@ mod test_prover;
 #[derive(Clone)]
 pub struct PolyCommitProof {
     pub witness: <Bls12_381 as Pairing>::G1Affine,
-    pub rand: BlsScalarField,
+    rand: BlsScalarField,
     pub committed_eval: <Bls12_381 as Pairing>::G1Affine,
 }
 
 impl PolyCommitProof {
     pub fn deep_size() -> usize {
         size_of::<<Bls12_381 as Pairing>::G1Affine>() * 2
-            + size_of::<BlsScalarField>()
     }
 }
 

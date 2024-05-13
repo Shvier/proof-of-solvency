@@ -184,27 +184,55 @@ def average(df):
         idxmax = df[column].idxmax()
         idxmin = df[column].idxmin()
         new_df[column] = df[column].drop([idxmax, idxmin])
-    average = (new_df.mean() / 1000).round(2)
+    average = new_df.mean()
     return average
 
-def show_performance(num_of_bits):
+def query_performance(num_of_bits):
     num_of_users_df = df['num_of_users'].drop_duplicates().sort_values()
     proving_time_df = []
     verifying_time_df = []
+    proof_size_df = []
     for num_of_user in num_of_users_df.values:
         filtered_df = df.query('num_of_users == {} and num_of_bits == {}'.format(num_of_user, num_of_bits)).drop(columns=['timestamp']).sort_values('num_of_users')
         filtered_df = average(filtered_df)
-        proving_time_df.append(add_vec(filtered_df['committing_time'], filtered_df['proving_time']))
-        verifying_time_df.append(filtered_df['verifying_time'])
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-    axs[0].plot(num_of_users_df, proving_time_df)
-    axs[0].set_xlabel('# Users')
-    axs[0].set_ylabel('Proving Time (ms)')
-    axs[1].plot(num_of_users_df, verifying_time_df)
-    axs[1].set_ylim([0, 20])
-    axs[1].set_xlabel('# Users')
-    axs[1].set_ylabel('Verifying Time (ms)')
-    fig.suptitle('# bits = 2^{}'.format(num_of_bits))
+        proving_time_df.append((add_vec(filtered_df['committing_time'], filtered_df['proving_time']) / 1000000).round(2))
+        verifying_time_df.append((filtered_df['verifying_time'] / 1000).round(2))
+        proof_size_df.append(filtered_df['proof_size'])
+
+    print('proving assets\n================\nproving time:')
+    for num, pt in zip(num_of_users_df, proving_time_df):
+        print('({},{})'.format(num, pt), end="")
+    print('\nverifying time:')
+    for num, vt in zip(num_of_users_df, verifying_time_df):
+        print('({},{})'.format(num, vt), end="")
+    print('\nproof size:')
+    for num, ps in zip(num_of_users_df, proof_size_df):
+        print('({},{})'.format(num, ps), end="")
+    print('\n================')
+    return (num_of_users_df, proving_time_df, verifying_time_df, proof_size_df)
+
+def show_performance():
+    num_of_bits_df = df['num_of_bits'].drop_duplicates().sort_values()
+
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+
+    for num in num_of_bits_df.values:
+        print('num_of_bits: {}'.format(num))
+        (num_of_users_df, proving_time_df, verifying_time_df, proof_size_df) = query_performance(num)
+        axs[0].plot(num_of_users_df, proving_time_df, label='{}bits'.format(num))
+        axs[0].set_xlabel('# Users')
+        axs[0].set_ylabel('Proving Time (s)')
+        axs[0].legend()
+        axs[1].plot(num_of_users_df, verifying_time_df, label='{}bits'.format(num))
+        axs[1].set_ylim([0, 20])
+        axs[1].set_xlabel('# Users')
+        axs[1].set_ylabel('Verifying Time (ms)')
+        axs[1].legend()
+        axs[2].plot(num_of_users_df, proof_size_df, label='{}bits'.format(num))
+        axs[2].set_ylim([0, 20])
+        axs[2].set_xlabel('# Users')
+        axs[2].set_ylabel('Proof Size (KB)')
+        axs[2].legend()
     plt.show()
 
-show_performance(64)
+show_performance()
