@@ -206,7 +206,8 @@ pub fn batch_open<E: Pairing, R: RngCore>(
 ) -> (E::G1, Vec<OpenEval<E>>, E::ScalarField) {
     assert!(polys.len() == randoms.len());
     let gamma = E::ScalarField::rand(rng);
-    let mut h = E::G1::zero();
+    let mut w = DensePolynomial::<E::ScalarField>::zero();
+    let mut rand_h = DensePolynomial::<E::ScalarField>::zero();
     let mut plain_evals = Vec::<(E::ScalarField, E::ScalarField)>::new();
     let mut committed_evals = Vec::<E::G1Affine>::new();
     let mut i = 0u64;
@@ -217,21 +218,9 @@ pub fn batch_open<E: Pairing, R: RngCore>(
         let (witness, random_witness) =
             KZG10::<E, DensePolynomial<E::ScalarField>>::compute_witness_polynomial(&p, point, &random).unwrap();
 
-        let (num_leading_zeros, witness_coeffs) =
-            skip_leading_zeros_and_convert_to_bigints(&witness);
-
-        let mut w = E::G1::msm_bigint(
-            &powers.powers_of_g[num_leading_zeros..],
-            witness_coeffs.as_slice(),
-        );
-        let random_witness_coeffs =
-            convert_to_bigints(&random_witness.unwrap().coeffs());
-        w += &<E::G1 as VariableBaseMSM>::msm_bigint(
-            &powers.powers_of_gamma_g,
-            random_witness_coeffs.as_slice(),
-        );
-
-        h += &(w.mul(gamma.pow(&[i])));
+        let factor = gamma.pow(&[i]);
+        w = w + witness.mul(factor);
+        rand_h = rand_h + random_witness.unwrap().mul(factor);
 
         i += 1;
 
@@ -240,6 +229,19 @@ pub fn batch_open<E: Pairing, R: RngCore>(
         plain_evals.push((eval, blinding_eval));
         committed_evals.push(committed_eval.into_affine());
     }
+
+    let (num_leading_zeros, witness_coeffs) =
+            skip_leading_zeros_and_convert_to_bigints(&w);
+
+    let mut h = E::G1::msm_bigint(
+        &powers.powers_of_g[num_leading_zeros..],
+        witness_coeffs.as_slice(),
+    );
+    let random_witness_coeffs = convert_to_bigints(&rand_h.coeffs());
+    h += &<E::G1 as VariableBaseMSM>::msm_bigint(
+        &powers.powers_of_gamma_g,
+        random_witness_coeffs.as_slice(),
+    );
 
     let open_evals: Vec<OpenEval<E>> = match perfect_hiding {
         true => committed_evals.into_iter().map(| eval | OpenEval::Committed(eval)).collect(),
