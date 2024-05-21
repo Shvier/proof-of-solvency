@@ -1,14 +1,17 @@
 # proof-of-solvency
 
-This implementation is for the demonstration purpose of the paper []().
+This implementation is for the demonstration purpose of the paper, [Xiezhi]().
 
-# Structure
+# Project Structure
 
-The proof-of-solvency is divided into two parts, proof-of-assets (PoA) and proof-of-liability (PoL) as defined in [Provisions](https://eprint.iacr.org/2015/1008#:~:text=A%20proof%20of%20solvency%20demonstrates,any%20information%20about%20its%20customers). Each protocol consists of the implementations of proving and verifying, under the directories "prover" and "verifier" respectively.
+The proof-of-solvency is broken into two protocols, proof-of-assets (PoA) and proof-of-liability (PoL), as defined in [Provisions](https://eprint.iacr.org/2015/1008#:~:text=A%20proof%20of%20solvency%20demonstrates,any%20information%20about%20its%20customers). The implementation of each protocol consists of proving and verifying, under the folders "prover" and "verifier" respectively.
 
-## src
+## proof of assets
+   * prover - $\pi_\mathsf{assets}$
+   * sigma - $\pi_\mathsf{keys}$
 
-In PoA, there is a folder named sigma, which is the implementation of our sigma protocol; in PoL, there is a `struct` named `Intermediate`, which is the implementation of proving liabilities for each group.
+## proof of liability
+   * prover - $\pi_\mathsf{liability}$ and $\pi_\mathsf{users}$
 
 ## utils
 
@@ -16,11 +19,11 @@ We simply implemented some operations like the Pedersen commitment, linearly com
 
 ## benchmark
 
-In this directory, the `gadgets.rs` consists of scripts for tests such as generating balances and the CSV report; the `mod.rs` consists of the structs used for tests.
+In this directory, the `gadgets.rs` features functionalities for testing such as generating balances and the CSV report; the `mod.rs` consists of the structs used for testing.
 
 ## bench_data
 
-Our experimental data. The experiments were conducted on a PC with i9-13900KF and 32GB of memory. We also ran the program on a MacBook with the M1 Pro chip and 16GB of memory to fix the experimental error.
+Our experimental data. The experiments were conducted on a PC with i9-13900KF and 32GB of memory. We also ran the program on a MacBook with the M1 Pro chip and 16GB of memory.
 
 # Verify the Experiment
 
@@ -30,10 +33,10 @@ Our experimental data. The experiments were conducted on a PC with i9-13900KF an
 2. On Windows, run the symbolic file `proof_of_solvency.exe`; on Unix-like systems, run the symbolic file `pos` (the program requires some input arguments, the explanation is followed).
 3. Input the desired option as the program's menu displays
    - Option 1 requires two parameters, one is the file path of the balance CSV, and the other is the output directory, e.g., `./bench_data/proof_of_liability` in our experiments;
-   - Option 2 requires two parameters, one is the file path of the balance CSV, and the other is the number of keys that we want to prove. The file path of the secp256k1 key pairs is fixed, so make sure it exists before running the program.
+   - Option 2 requires two parameters, one is the file path of the balance CSV, and the other is the number of keys that we want to prove. The file path of the $\texttt{secp256k1}$ key pairs is fixed, so make sure it exists before running the program.
    - Option 3 requires one parameter, the number of keys. The program will stop after precomputing is done and output two JSON files, `prover.json` and `selector_commitment.json`. The prover should use these two validated JSON files to run the main protocol.
    - Option 4 requires three parameters, the file path of the balance CSV, the number of keys, and the file path of `prover.json`.
-   - Option 5 requires one parameter, the number of keys. It will randomly generate some secp256k1 key pairs for test.
+   - Option 5 requires one parameter, the number of keys. It will randomly generate some $\texttt{secp256k1}$ key pairs for test.
 
 ## Prepare the Experiment Configurations
 
@@ -46,4 +49,4 @@ For PoL
 - Modify `configs` in `generate_config_for_pol` and run this function, which will output a configuration JSON file. Our implementation supports dynamic configuration for `num_of_users`, `num_of_bits` (this should correspond to `upper_bound`), and `num_of_groups`.
 
 ## Generate the Report
-We provide a way to aggregate the output JSON files into a CSV, by simply running the function `generate_csv_report` in `gadgets.rs`. Also, there are two visualization scripts, `visualize_poa.py` and `visualize_pol.py`.
+We provide a way to aggregate the output JSON files into a CSV, by simply running the function `generate_csv_report` in `gadgets.rs`. Also, there are two visualization scripts, `visualize_poa.py` and `visualize_pol.py`, to interpolate the figures from the CSV.

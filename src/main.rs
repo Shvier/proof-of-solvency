@@ -10,8 +10,8 @@ fn main() {
     println!("Operation:");
     println!("1. Run Proof-of-Liability");
     println!("2. Run whole Proof-of-Assets");
-    println!("3. Run precomputation for Proof-of-Assets");
-    println!("4. Run Proof-of-Assets");
+    println!("3. Run pi_keys for Proof-of-Assets");
+    println!("4. Run pi_assets Proof-of-Assets");
     println!("5. Generate secp256k1 key pairs for Proof-of-Assets");
     println!("6. Exit");
 

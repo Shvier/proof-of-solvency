@@ -83,8 +83,10 @@ def show_post_precomputing():
     for num, pt in zip(keys_df, proving_time_df):
         print('({},{})'.format(num, pt), end="")
     print('\nverifying time:')
-    vt_list = add_vec(verifying_time_df, validating_balance_df)
-    for num, vt in zip(keys_df, vt_list):
+    for num, vt in zip(keys_df, verifying_time_df):
+        print('({},{})'.format(num, vt.round(2)), end="")
+    print('\nvalidating balance poly:')
+    for num, vt in zip(keys_df, validating_balance_df):
         print('({},{})'.format(num, vt.round(2)), end="")
     print('\nproof size:')
     for num, ps in zip(keys_df, proof_size_df):
@@ -97,12 +99,12 @@ def show_post_precomputing():
     axs[0].set_xlabel('# Keys')
     axs[0].set_ylabel('Proving Time (ms)')
 
-    axs[1].set_ylim([1, 10])
+    axs[1].set_ylim([0, 10])
     axs[1].plot(keys_df, verifying_time_df)
     axs[1].set_xlabel('# Keys')
     axs[1].set_ylabel('Verifying Proof Time (ms)')
 
-    axs[2].set_ylim([0, 100])
+    axs[2].set_ylim([0, 10])
     axs[2].plot(keys_df, interpolating_balance_df)
     axs[2].set_xlabel('# Keys')
     axs[2].set_ylabel('Interpolating Balance Time (ms)')
@@ -111,8 +113,8 @@ def show_post_precomputing():
     axs[3].set_xlabel('# Keys')
     axs[3].set_ylabel('Validating Commitment to Balance Time (ms)')
 
-    fig.suptitle('Post-Precomputing Stage')
+    fig.suptitle('Proving Assets Stage')
     plt.show()
 
-show_precomputing()
+# show_precomputing()
 show_post_precomputing()
