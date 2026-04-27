@@ -1,0 +1,1 @@
+bench_data/proof_of_assets/key_pairs.json filter=lfs diff=lfs merge=lfs -text
