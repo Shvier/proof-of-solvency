@@ -7,7 +7,8 @@ use ark_std::{rand::RngCore, test_rng, Zero, One};
 use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
-use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, mem::size_of, ops::Mul, sync::{Arc, Mutex}, thread, time::Instant};
+use rayon::prelude::*;
+use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, mem::size_of, ops::Mul, sync::{Arc, Mutex}, time::Instant};
 
 use crate::{benchmark::{AffinePoint, AffineQuadExt, AffineQuadExtPoint, PoAProverJSON, SelectorPoly, TrustSetupParams}, types::{BlsScalarField, UniPoly_381}, utils::{average, batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
@@ -381,47 +382,30 @@ impl Prover<'_> {
         let (cm, randomness) = self.commit_to_selector();
         let omega = self.omega.clone();
         let selector = self.selector.clone();
-        let proofs = Arc::new(Mutex::new(Vec::<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)>::new()));
-
         let now = Instant::now();
         println!("Start generating the sigma proofs");
 
         let sigma = Arc::new(Mutex::new(self.sigma.clone()));
-        let poly = Arc::new(self.poly.clone());
         let randomness = Arc::new(randomness);
+        let self_ref = &*self;
 
-        let binding = Mutex::new(self.powers.clone());
-        let powers = Arc::new(&binding);
-
-        thread::scope(| s | {
-            for i in 0..selector.len() {
+        let proofs: Vec<_> = (0..selector.len())
+            .into_par_iter()
+            .map(|i| {
                 let sel = selector[i];
                 let pk = pks[i];
-                let sk = &sks[i];
-                
-                let sigma = sigma.clone();
-                let poly = poly.clone();
-                let randomness = randomness.clone();
-                let proofs = proofs.clone();
-                let powers = powers.clone();
+                let sk = sks[i].clone();
+                let point = omega.pow(&[i as u64]);
 
-                s.spawn(move || {
-                    let point = omega.pow(&[i as u64]);
-                    let pc_proof = Prover::concurrent_open(powers, &poly, &sigma, point, &randomness);
-                    let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk.clone());
-                    proofs.lock().unwrap().push((cm, pc_proof, sigma_proof, i));
-                    println!("Sigma proof {} is generated", i);
-                });
-            }
-        });
+                let pc_proof = self_ref.open(&self_ref.poly, point, &randomness);
+                let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
+                println!("Sigma proof {} is generated", i);
+                (cm.clone(), pc_proof, sigma_proof, i)
+            })
+            .collect();
+
         let elapsed = now.elapsed();
         println!("The sigma proofs are generated: {:.2?}", elapsed);
-        let proofs = proofs.lock().unwrap()
-            .iter()
-            .map(| proof | { 
-                (proof.0, proof.1.clone(), proof.2.clone(), proof.3)
-             })
-            .collect();
         proofs
     }
 

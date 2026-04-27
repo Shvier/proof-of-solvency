@@ -89,7 +89,7 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
     let setup_cost = now.elapsed();
     println!("interpolate selector: {:.2?}", setup_cost);
     let now = Instant::now();
-    let proofs = prover.generate_proof(&pks, &sks);
+    let proofs = prover.concurrent_generate_proof(&pks, &sks);
     let setup_prove_cost = now.elapsed();
     println!("proving time: {:.2?}", setup_prove_cost);
     let vk = &prover.vk;
