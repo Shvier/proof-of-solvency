@@ -1,6 +1,6 @@
 # proof-of-solvency
 
-This implementation is for the demonstration purpose of the paper, [Xiezhi]().
+This implementation is for the demonstration purpose of the paper, [Xiezhi](https://eprint.iacr.org/2024/2001).
 
 # Project Structure
 
@@ -36,7 +36,7 @@ Our experimental data. The experiments were conducted on a PC with i9-13900KF an
    - Option 2 requires two parameters, one is the file path of the balance CSV, and the other is the number of keys that we want to prove. The file path of the $\texttt{secp256k1}$ key pairs is fixed, so make sure it exists before running the program.
    - Option 3 requires one parameter, the number of keys. The program will stop after precomputing is done and output two JSON files, `prover.json` and `selector_commitment.json`. The prover should use these two validated JSON files to run the main protocol.
    - Option 4 requires three parameters, the file path of the balance CSV, the number of keys, and the file path of `prover.json`.
-   - Option 5 requires one parameter, the number of keys. It will randomly generate some $\texttt{secp256k1}$ key pairs for test.
+   - Option 5 requires one parameter, the number of keys. It will randomly generate some $\texttt{secp256k1}$ key pairs for testing.
 
 ## Prepare the Experiment Configurations
 

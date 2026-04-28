@@ -8,7 +8,7 @@ parser.add_argument('csv_path')
 args = parser.parse_args()
 csv = pd.read_csv(args.csv_path)
 df = pd.DataFrame(csv)
-df = df[df['num_of_keys'].isin([256, 512, 1024, 2048, 4096, 8192, 16384])]
+df = df[df['num_of_keys'].isin([1024, 2048, 4096, 8192, 16384, 32768, 65536])]
 
 def add_vec(a, b):
     a = np.array(a)
@@ -116,5 +116,5 @@ def show_post_precomputing():
     fig.suptitle('Proving Assets Stage')
     plt.show()
 
-# show_precomputing()
+show_precomputing()
 show_post_precomputing()
