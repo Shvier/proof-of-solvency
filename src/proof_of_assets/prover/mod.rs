@@ -68,6 +68,17 @@ impl Prover<'_> {
         let evals = selector.into_iter().map(| s | Fr::from(*s)).collect();
         let evaluations = Evaluations::from_vec_and_domain(evals, domain);
         let poly = evaluations.interpolate();
+
+        if cfg!(test) {
+            let omega = domain.element(1);
+            for i in 0..selector.len() {
+                let point = omega.pow(&[i as u64]);
+                let eval = poly.evaluate(&point);
+                assert!(eval.is_zero() || eval.is_one());
+            }
+        }
+        println!("selector degree: {}", poly.degree());
+
         let rng = &mut test_rng();
         let pp = KZG10::<Bls12_381, UniPoly_381>::setup(max_degree, false, rng).unwrap();
         let powers_of_g = pp.powers_of_g[..=max_degree].to_vec();
@@ -557,5 +568,64 @@ impl Prover<'_> {
             })
             .collect();
         proofs
+    }
+}
+
+impl Prover<'_> {
+    pub fn prepare_selector_quotient_evals(&self) -> Vec<Vec<BlsScalarField>> {
+        let domain_size = self.domain_size;
+        let domain = Radix2EvaluationDomain::<BlsScalarField>::new(domain_size).unwrap();
+        let elements = domain.elements().collect::<Vec<BlsScalarField>>();
+        assert_eq!(self.selector.len(), elements.len());
+        let omega = self.omega;
+        let true_indices = self.selector.iter().enumerate()
+            .filter_map(| (i, s) | if *s { Some(i) } else { None })
+            .collect::<Vec<usize>>();
+        let evals = self.selector.iter().enumerate()
+            .map(| (i, s) | {
+                let zero = BlsScalarField::zero();
+                let one = BlsScalarField::one();
+                let neg_one = zero - one;
+                let omega_i = omega.pow(&[i as u64]);
+                if *s {
+                    let mut evals = vec![];
+                    let mut k = 0;
+                    for j in 0..domain_size {
+                        if i == j {
+                            continue;
+                        }
+                        if k < true_indices.len() && true_indices[k] == j {
+                            evals.push(zero);
+                            k += 1;
+                        } else {
+                            let omega_j = omega.pow(&[j as u64]);
+                            let term = neg_one * (omega_j - omega_i).inverse().unwrap();
+                            evals.push(term);
+                        }
+                    }
+                    assert_eq!(evals.len(), domain_size - 1);
+                    evals
+                } else {
+                    let mut evals: Vec<BlsScalarField> = vec![];
+                    let mut k = 0;
+                    for j in 0..domain_size {
+                        if i == j {
+                            continue;
+                        }
+                        if k < true_indices.len() && true_indices[k] == j {
+                            let omega_j = omega.pow(&[j as u64]);
+                            let term = one * (omega_j - omega_i).inverse().unwrap();
+                            evals.push(term);
+                            k += 1;
+                        } else {
+                            evals.push(zero);
+                        }
+                    }
+                    assert_eq!(evals.len(), domain_size - 1);
+                    evals
+                }
+            })
+            .collect::<Vec<Vec<BlsScalarField>>>();
+        evals
     }
 }

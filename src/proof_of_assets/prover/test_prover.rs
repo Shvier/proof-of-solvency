@@ -1,14 +1,21 @@
-use ark_bls12_381::{Bls12_381, Fr};
+use std::ops::Mul;
+use ark_bls12_381::{Bls12_381, Fr, G1Affine};
+use ark_bls12_381::g1::Config;
+use ark_ec::bls12::Bls12;
+use ark_ec::pairing::Pairing;
+use ark_ec::VariableBaseMSM;
+use ark_poly::DenseUVPolynomial;
+use ark_poly::univariate::DensePolynomial;
 use ark_poly::{univariate::DenseOrSparsePolynomial, EvaluationDomain, Radix2EvaluationDomain, Polynomial};
-use ark_poly_commit::kzg10::{Proof, KZG10};
-use ark_std::{rand::Rng, test_rng, UniformRand, Zero};
+use ark_poly_commit::{kzg10::{Commitment, KZG10, Proof, Randomness}, PCRandomness};
+use ark_std::{rand::{Rng, seq::SliceRandom}, test_rng, UniformRand, Zero};
 use ark_ff::Field;
 use num_bigint::{BigUint, RandomBits};
 
-use crate::proof_of_assets::verifier::Verifier;
+use crate::{proof_of_assets::verifier::Verifier, utils::{lagrange_commitments, convert_to_bigints}};
 #[cfg(test)]
 use crate::types::BlsScalarField;
-
+use crate::utils::skip_leading_zeros_and_convert_to_bigints;
 use super::{Prover, UniPoly_381};
 
 #[test]
@@ -33,6 +40,76 @@ fn test_prover() {
         };
         let result = KZG10::<Bls12_381, UniPoly_381>::check(&vk, &cm, point, Fr::from(s), &proof).unwrap();
         assert!(result);
+    }
+}
+
+#[test]
+fn test_prover_lagrange() {
+    let num_assets = 5;
+    let rng = &mut test_rng();
+    let mut indices: Vec<usize> = (0..16).collect();
+    indices.shuffle(rng);
+    let mut selector = vec![false; 16];
+    for &idx in indices.iter().take(num_assets) {
+        selector[idx] = true;
+    }
+    let mut selector = vec![false, false, false, true];
+    println!("selector: {:?}", selector);
+    let mut prover = Prover::setup(&selector);
+
+    let (lag_comms, lag_rand_comm, lag_polys, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
+    assert_eq!(lag_polys.len(), prover.domain_size - 1);
+
+    let lag_evals = prover.prepare_selector_quotient_evals();
+    let quotients: Vec<_> = lag_evals.iter().enumerate().map(| (i, evals) | {
+        let mut acc = UniPoly_381::zero();
+        let mut k = 0;
+        for (j, e) in evals.iter().enumerate() {
+            if i == j {
+                k += 1;
+                continue;
+            }
+            let term = DensePolynomial::from_coefficients_vec(vec![*e]);
+            let p = &lag_polys[k];
+            let term = term.mul(p);
+            acc += &term;
+            k += 1;
+        }
+        acc
+    })
+    .collect();
+
+
+    let quotient_comms = lag_evals
+        .iter()
+        .map(|evals| {
+            let bigints = convert_to_bigints(evals);
+            let affines = lag_comms.iter().map(|c| c.0).collect::<Vec<_>>();
+            let comm = <Bls12_381 as Pairing>::G1::msm_bigint(&affines, &bigints);
+            comm
+        })
+        .collect::<Vec<_>>();
+
+    let (cm, randomness) = prover.commit_to_selector();
+    let omega = prover.omega;
+    let poly = prover.poly;
+    let powers = prover.powers;
+    for i in (0..selector.len()).rev() {
+        let point = omega.pow(&[i as u64]);
+        let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(&poly, point, &randomness).unwrap();
+        // let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
+        //
+        // let w = <Bls12_381 as Pairing>::G1::msm_bigint(
+        //     &powers.powers_of_g[num_leading_zeros..],
+        //     &witness_coeffs,
+        // );
+
+        println!("{}", i);
+        assert_eq!(witness_polynomial.degree(), quotients[i].degree());
+        for (w_coeff, q_coeff) in witness_polynomial.coeffs().iter().zip(quotients[i].coeffs.iter()) {
+            assert_eq!(w_coeff, q_coeff);
+        }
+        // assert_eq!(w, quotient_comms[i]);
     }
 }
 

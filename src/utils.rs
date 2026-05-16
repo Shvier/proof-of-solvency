@@ -1,8 +1,9 @@
+use ark_poly_commit::PCRandomness;
 use ark_ec::{pairing::Pairing, short_weierstrass::Projective, AffineRepr, VariableBaseMSM, CurveGroup};
 use ark_ff::{FftField, Field, PrimeField};
-use ark_poly::{univariate::{DenseOrSparsePolynomial, DensePolynomial}, DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial};
+use ark_poly::{DenseUVPolynomial, EvaluationDomain, Evaluations, Polynomial, Radix2EvaluationDomain, univariate::{DenseOrSparsePolynomial, DensePolynomial}};
 use ark_poly_commit::kzg10::{Commitment, Powers, Randomness, VerifierKey, KZG10};
-use ark_std::{rand::{Rng, RngCore, thread_rng}, UniformRand, Zero};
+use ark_std::{One, UniformRand, Zero, rand::{Rng, RngCore, thread_rng}, test_rng};
 use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
 use sha2::{Digest, Sha256};
@@ -82,6 +83,24 @@ pub fn interpolate_poly<F: FftField, D: EvaluationDomain<F>,>(
     let ff_vectors = vectors.into_iter().map(|v| {F::from(*v)}).collect();
     let evaluations = Evaluations::from_vec_and_domain(ff_vectors, domain);
     evaluations.interpolate()
+}
+
+pub fn lagrange_basis_polynomial<F: FftField>(points: &[F], i: usize) -> DensePolynomial<F> {
+    assert!(i < points.len());
+    let xi = points[i];
+    let mut poly = DensePolynomial::from_coefficients_vec(vec![F::one()]);
+    let mut denom = F::one();
+    for (j, xj) in points.iter().enumerate() {
+        if j == i {
+            continue;
+        }
+        let factor = DensePolynomial::from_coefficients_vec(vec![-*xj, F::one()]);
+        poly = &poly * &factor;
+
+        denom *= xi - *xj;
+    }
+    let inv_denom = denom.inverse().expect("distinct evaluation points required");
+    &poly * inv_denom
 }
 
 pub fn substitute_x<
@@ -440,7 +459,47 @@ pub fn average<'v, T>(v: &'v [T]) -> T
 where
     T: Div<Output = T>,
     T: From<u16>,
-    T: Sum<&'v T>,
-{
+    T: Sum<&'v T>, {
     v.iter().sum::<T>() / From::from(v.len() as u16)
+}
+
+pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
+    powers: &Powers<E>,
+    num_of_points: usize,
+) -> (Vec<Commitment<E>>, E::G1Affine, Vec<P>, Randomness<E::ScalarField, P>) {
+    let domain = Radix2EvaluationDomain::<E::ScalarField>::new(num_of_points).unwrap();
+    let mut commitments = Vec::with_capacity(num_of_points);
+    let mut polys = vec![];
+
+    let points: Vec<_> = (0..num_of_points).map(|j| domain.element(j)).collect();
+    for i in 0..num_of_points {
+        let poly = lagrange_basis_polynomial(&points, i);
+
+        if cfg!(test) {
+            for (j, point) in points.iter().enumerate() {
+                let eval = poly.evaluate(point);
+                if i == j {
+                    assert_eq!(eval, E::ScalarField::one());
+                } else {
+                    assert_eq!(eval, E::ScalarField::zero());
+                }
+            }
+        }
+
+        // Commit using KZG10
+        let (commitment, _) = KZG10::<E, _>::commit(powers, &poly, None, None).unwrap();
+        polys.push(P::from_coefficients_vec(poly.coeffs().to_vec()));
+
+        commitments.push(commitment);
+    }
+
+    let mut rng = test_rng();
+    let randomness = Randomness::<E::ScalarField, P>::rand(num_of_points, false, None, &mut rng);
+    let random_ints = convert_to_bigints(&randomness.blinding_polynomial.coeffs());
+    let random_commitment = <E::G1 as VariableBaseMSM>::msm_bigint(
+        &powers.powers_of_gamma_g,
+        random_ints.as_slice(),
+    ).into_affine();
+
+    (commitments, random_commitment, polys, randomness)
 }
