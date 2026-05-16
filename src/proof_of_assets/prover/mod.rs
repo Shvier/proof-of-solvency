@@ -77,7 +77,6 @@ impl Prover<'_> {
                 assert!(eval.is_zero() || eval.is_one());
             }
         }
-        println!("selector degree: {}", poly.degree());
 
         let rng = &mut test_rng();
         let pp = KZG10::<Bls12_381, UniPoly_381>::setup(max_degree, false, rng).unwrap();

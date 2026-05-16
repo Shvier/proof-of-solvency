@@ -90,10 +90,20 @@ fn test_prover_lagrange() {
     for &idx in indices.iter().take(num_assets) {
         selector[idx] = true;
     }
-    println!("selector: {:?}", selector);
     let mut prover = Prover::setup(&selector);
 
     let (lag_comms, lag_rand_comm, lag_polys, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
+    for i in 0..lag_polys.len() {
+        for j in 0..lag_polys.len() {
+            let point = prover.omega.pow(&[j as u64]);
+            let eval = lag_polys[i].evaluate(&point);
+            if i == j {
+                assert_eq!(eval, BlsScalarField::one());
+            } else {
+                assert_eq!(eval, BlsScalarField::zero());
+            }
+        }
+    }
     assert_eq!(lag_polys.len(), prover.domain_size - 1);
 
     let lag_evals = prover.prepare_selector_quotient_evals();
@@ -109,7 +119,6 @@ fn test_prover_lagrange() {
     })
     .collect();
 
-
     let quotient_comms = lag_evals
         .iter()
         .map(|evals| {
@@ -124,7 +133,7 @@ fn test_prover_lagrange() {
     let omega = prover.omega;
     let poly = prover.poly;
     let powers = prover.powers;
-    for i in (0..selector.len()).rev() {
+    for i in 0..selector.len() {
         let point = omega.pow(&[i as u64]);
         let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(&poly, point, &randomness).unwrap();
         // let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
@@ -134,8 +143,12 @@ fn test_prover_lagrange() {
         //     &witness_coeffs,
         // );
 
-        println!("{}", i);
         assert_eq!(witness_polynomial.degree(), quotients[i].degree());
+        for (j, e1) in lag_evals[i].iter().enumerate() {
+            let point = omega.pow(&[j as u64]);
+            let e2 = witness_polynomial.evaluate(&point);
+            assert_eq!(*e1, e2);
+        }
         for (w_coeff, q_coeff) in witness_polynomial.coeffs().iter().zip(quotients[i].coeffs.iter()) {
             assert_eq!(w_coeff, q_coeff);
         }
