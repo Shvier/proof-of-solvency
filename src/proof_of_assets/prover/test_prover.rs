@@ -45,7 +45,14 @@ fn test_prover() {
 
 #[test]
 fn test_prover_prepare_selector_quotient_evals() {
-    let selector = vec![false, true, true, false];
+    let num_assets = 5;
+    let rng = &mut test_rng();
+    let mut indices: Vec<usize> = (0..16).collect();
+    indices.shuffle(rng);
+    let mut selector = vec![false; 16];
+    for &idx in indices.iter().take(num_assets) {
+        selector[idx] = true;
+    }
     println!("selector: {:?}", selector);
     let prover = Prover::setup(&selector);
     let evals = prover.prepare_selector_quotient_evals();

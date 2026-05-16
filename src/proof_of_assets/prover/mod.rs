@@ -576,6 +576,8 @@ impl Prover<'_> {
         let domain_size = self.domain_size;
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(domain_size).unwrap();
         let elements = domain.elements().collect::<Vec<BlsScalarField>>();
+        let s_evals = self.poly.coeffs.iter().cloned().collect::<Vec<_>>();
+        let s_evals = domain.fft(&s_evals);
         assert_eq!(self.selector.len(), elements.len());
 
         let mut derivative_s = vec![];
@@ -588,50 +590,23 @@ impl Prover<'_> {
         let degree_q = self.poly.degree() - 1;
 
         let omega = self.omega;
-        let true_indices = self.selector.iter().enumerate()
-            .filter_map(| (i, s) | if *s { Some(i) } else { None })
-            .collect::<Vec<usize>>();
-        let evals = self.selector.iter().enumerate()
-            .map(| (i, s) | {
-                let zero = BlsScalarField::zero();
-                let one = BlsScalarField::one();
-                let neg_one = zero - one;
+
+        let evals = (0..self.selector.len())
+            .map(| i | {
                 let omega_i = omega.pow(&[i as u64]);
-                if *s {
-                    let mut evals = vec![];
-                    let mut k = 0;
-                    for j in 0..degree_q {
-                        if i == j {
-                            let term = d_s.evaluate(&omega_i);
-                            evals.push(term);
-                        } else if k < true_indices.len() && true_indices[k] == j {
-                            evals.push(zero);
-                            k += 1;
-                        } else {
-                            let omega_j = omega.pow(&[j as u64]);
-                            let term = neg_one * (omega_j - omega_i).inverse().unwrap();
-                            evals.push(term);
-                        }
+                let mut evals = vec![];
+                for j in 0..degree_q {
+                    if i == j {
+                        let term = d_s.evaluate(&omega_i);
+                        evals.push(term);
+                        continue;
                     }
-                    evals
-                } else {
-                    let mut evals: Vec<BlsScalarField> = vec![];
-                    let mut k = 0;
-                    for j in 0..degree_q {
-                        if i == j {
-                            let term = d_s.evaluate(&omega_i);
-                            evals.push(term);
-                        } else if k < true_indices.len() && true_indices[k] == j {
-                            let omega_j = omega.pow(&[j as u64]);
-                            let term = one * (omega_j - omega_i).inverse().unwrap();
-                            evals.push(term);
-                            k += 1;
-                        } else {
-                            evals.push(zero);
-                        }
-                    }
-                    evals
+                    let omega_j = omega.pow(&[j as u64]);
+                    let numerator = s_evals[j] - s_evals[i];
+                    let term = numerator * (omega_j - omega_i).inverse().unwrap();
+                    evals.push(term);
                 }
+                evals
             })
             .collect::<Vec<Vec<BlsScalarField>>>();
         evals
