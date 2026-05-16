@@ -587,7 +587,7 @@ impl Prover<'_> {
             derivative_s.push(new_coeff);
         }
         let d_s = DensePolynomial::from_coefficients_vec(derivative_s.clone());
-        let degree_q = self.poly.degree() - 1;
+        let q_domain_size = domain_size - 1;
 
         let omega = self.omega;
 
@@ -595,7 +595,7 @@ impl Prover<'_> {
             .map(| i | {
                 let omega_i = omega.pow(&[i as u64]);
                 let mut evals = vec![];
-                for j in 0..degree_q {
+                for j in 0..q_domain_size {
                     if i == j {
                         let term = d_s.evaluate(&omega_i);
                         evals.push(term);

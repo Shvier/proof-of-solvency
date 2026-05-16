@@ -53,7 +53,6 @@ fn test_prover_prepare_selector_quotient_evals() {
     for &idx in indices.iter().take(num_assets) {
         selector[idx] = true;
     }
-    println!("selector: {:?}", selector);
     let prover = Prover::setup(&selector);
     let evals = prover.prepare_selector_quotient_evals();
     let domain_size = prover.domain_size;
@@ -72,10 +71,8 @@ fn test_prover_prepare_selector_quotient_evals() {
         // [s(X) - s(a)] / (X - a)
         let (q, r) = DenseOrSparsePolynomial::from(numerator).divide_with_q_and_r(&DenseOrSparsePolynomial::from(denominator)).unwrap();
         assert!(r.is_zero());
-        println!("{}", i);
-        assert_eq!(evals[i].len(), q.degree());
+        assert_eq!(evals[i].len(), q.degree() + 1);
         for (j, e1) in evals[i].iter().enumerate() {
-            println!("evals[{}]", j);
             let point = omega.pow(&[j as u64]);
             let e2 = q.evaluate(&point);
             assert_eq!(*e1, e2);
@@ -93,7 +90,6 @@ fn test_prover_lagrange() {
     for &idx in indices.iter().take(num_assets) {
         selector[idx] = true;
     }
-    let mut selector = vec![false, false, true, true];
     println!("selector: {:?}", selector);
     let mut prover = Prover::setup(&selector);
 
