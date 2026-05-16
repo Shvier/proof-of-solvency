@@ -577,6 +577,16 @@ impl Prover<'_> {
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(domain_size).unwrap();
         let elements = domain.elements().collect::<Vec<BlsScalarField>>();
         assert_eq!(self.selector.len(), elements.len());
+
+        let mut derivative_s = vec![];
+        for (i, coeff) in self.poly.coeffs.iter().skip(1).enumerate() {
+            let multiplier = BlsScalarField::from((i + 1) as u64);
+            let new_coeff = coeff.mul(&multiplier);
+            derivative_s.push(new_coeff);
+        }
+        let d_s = DensePolynomial::from_coefficients_vec(derivative_s.clone());
+        let degree_q = self.poly.degree() - 1;
+
         let omega = self.omega;
         let true_indices = self.selector.iter().enumerate()
             .filter_map(| (i, s) | if *s { Some(i) } else { None })
@@ -590,11 +600,11 @@ impl Prover<'_> {
                 if *s {
                     let mut evals = vec![];
                     let mut k = 0;
-                    for j in 0..domain_size {
+                    for j in 0..degree_q {
                         if i == j {
-                            continue;
-                        }
-                        if k < true_indices.len() && true_indices[k] == j {
+                            let term = d_s.evaluate(&omega_i);
+                            evals.push(term);
+                        } else if k < true_indices.len() && true_indices[k] == j {
                             evals.push(zero);
                             k += 1;
                         } else {
@@ -603,16 +613,15 @@ impl Prover<'_> {
                             evals.push(term);
                         }
                     }
-                    assert_eq!(evals.len(), domain_size - 1);
                     evals
                 } else {
                     let mut evals: Vec<BlsScalarField> = vec![];
                     let mut k = 0;
-                    for j in 0..domain_size {
+                    for j in 0..degree_q {
                         if i == j {
-                            continue;
-                        }
-                        if k < true_indices.len() && true_indices[k] == j {
+                            let term = d_s.evaluate(&omega_i);
+                            evals.push(term);
+                        } else if k < true_indices.len() && true_indices[k] == j {
                             let omega_j = omega.pow(&[j as u64]);
                             let term = one * (omega_j - omega_i).inverse().unwrap();
                             evals.push(term);
@@ -621,7 +630,6 @@ impl Prover<'_> {
                             evals.push(zero);
                         }
                     }
-                    assert_eq!(evals.len(), domain_size - 1);
                     evals
                 }
             })

@@ -8,7 +8,7 @@ use ark_poly::DenseUVPolynomial;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly::{univariate::DenseOrSparsePolynomial, EvaluationDomain, Radix2EvaluationDomain, Polynomial};
 use ark_poly_commit::{kzg10::{Commitment, KZG10, Proof, Randomness}, PCRandomness};
-use ark_std::{rand::{Rng, seq::SliceRandom}, test_rng, UniformRand, Zero};
+use ark_std::{rand::{Rng, seq::SliceRandom}, test_rng, One, UniformRand, Zero};
 use ark_ff::Field;
 use num_bigint::{BigUint, RandomBits};
 
@@ -44,6 +44,39 @@ fn test_prover() {
 }
 
 #[test]
+fn test_prover_prepare_selector_quotient_evals() {
+    let selector = vec![false, true, true, false];
+    println!("selector: {:?}", selector);
+    let prover = Prover::setup(&selector);
+    let evals = prover.prepare_selector_quotient_evals();
+    let domain_size = prover.domain_size;
+    let p = DenseOrSparsePolynomial::from(prover.poly.clone());
+    let omega = prover.omega;
+    for i in 0..domain_size {
+        // a
+        let point = omega.pow(&[i as u64]);
+        // X - a
+        let denominator = DensePolynomial::from_coefficients_vec(vec![-point, BlsScalarField::one()]);
+        // s(a)
+        let p_eval = prover.poly.evaluate(&point);
+        let p_eval = DensePolynomial::from_coefficients_vec(vec![p_eval]);
+        // s(X) - s(a)
+        let numerator = &prover.poly - &p_eval;
+        // [s(X) - s(a)] / (X - a)
+        let (q, r) = DenseOrSparsePolynomial::from(numerator).divide_with_q_and_r(&DenseOrSparsePolynomial::from(denominator)).unwrap();
+        assert!(r.is_zero());
+        println!("{}", i);
+        assert_eq!(evals[i].len(), q.degree());
+        for (j, e1) in evals[i].iter().enumerate() {
+            println!("evals[{}]", j);
+            let point = omega.pow(&[j as u64]);
+            let e2 = q.evaluate(&point);
+            assert_eq!(*e1, e2);
+        }
+    }
+}
+
+#[test]
 fn test_prover_lagrange() {
     let num_assets = 5;
     let rng = &mut test_rng();
@@ -53,7 +86,7 @@ fn test_prover_lagrange() {
     for &idx in indices.iter().take(num_assets) {
         selector[idx] = true;
     }
-    let mut selector = vec![false, false, false, true];
+    let mut selector = vec![false, false, true, true];
     println!("selector: {:?}", selector);
     let mut prover = Prover::setup(&selector);
 
@@ -61,19 +94,13 @@ fn test_prover_lagrange() {
     assert_eq!(lag_polys.len(), prover.domain_size - 1);
 
     let lag_evals = prover.prepare_selector_quotient_evals();
-    let quotients: Vec<_> = lag_evals.iter().enumerate().map(| (i, evals) | {
+    let quotients: Vec<_> = lag_evals.iter().map(| evals | {
         let mut acc = UniPoly_381::zero();
-        let mut k = 0;
-        for (j, e) in evals.iter().enumerate() {
-            if i == j {
-                k += 1;
-                continue;
-            }
+        for (i, e) in evals.iter().enumerate() {
             let term = DensePolynomial::from_coefficients_vec(vec![*e]);
-            let p = &lag_polys[k];
+            let p = &lag_polys[i];
             let term = term.mul(p);
             acc += &term;
-            k += 1;
         }
         acc
     })
