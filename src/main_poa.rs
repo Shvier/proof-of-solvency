@@ -1,12 +1,16 @@
 use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of, str::FromStr, time::Instant};
 
 use ark_bls12_381::{Bls12_381, G1Affine};
+use ark_ec::bls12::Bls12;
 use ark_poly_commit::kzg10::Commitment;
 use ark_std::{rand::Rng, test_rng, UniformRand};
+use ark_std::rand::prelude::SliceRandom;
 use ark_test_curves::secp256k1::{self, Fq};
 use num_bigint::BigUint;
 
 use crate::{benchmark::{AffinePoint, KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::{PolyCommitProof, Prover}, sigma::SigmaProtocolProof, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
+use crate::types::UniPoly_381;
+use crate::utils::lagrange_commitments;
 
 pub fn run_poa(bal_path: &str, num_of_keys: usize) {
     let prover = precompute_poa(num_of_keys);
@@ -141,6 +145,33 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
     serde_json::to_writer(&mut writer, &prover_json).unwrap();
     writer.flush().unwrap();
     prover
+}
+
+pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
+    let (pks, sks) = read_key_pairs();
+    let rng = &mut test_rng();
+    let mut indices: Vec<usize> = (0..num_of_keys).collect();
+    indices.shuffle(rng);
+    let mut selector = vec![false; num_of_keys];
+    for &idx in indices.iter().take(num_assets) {
+        selector[idx] = true;
+    }
+
+    let now = Instant::now();
+    let mut prover = Prover::setup(&selector);
+    let setup_cost = now.elapsed();
+    println!("interpolate selector: {:.2?}", setup_cost);
+    let q_evals = prover.prepare_selector_quotient_evals();
+
+    let now = Instant::now();
+    let (lag_comms, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
+    let lagrange_cost = now.elapsed();
+    println!("lagrange bases: {:.2?}", lagrange_cost);
+
+    let now = Instant::now();
+    let proofs = prover.lagrange_generate_proof(&pks, &sks, &lag_comms, &q_evals);
+    let setup_prove_cost = now.elapsed();
+    println!("proving time: {:.2?}", setup_prove_cost);
 }
 
 fn read_key_pairs() -> (Vec<secp256k1::G1Affine>, Vec<BigUint>) {

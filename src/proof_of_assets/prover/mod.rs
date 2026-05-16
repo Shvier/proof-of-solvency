@@ -325,7 +325,7 @@ impl Prover<'_> {
         }
     }
 
-    pub fn lagrange_open(&self, point: BlsScalarField, lag_comms: Vec<Commitment<Bls12_381>>, evals: &[BlsScalarField], randomness: Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
+    pub fn lagrange_open(&self, point: BlsScalarField, lag_comms: &Vec<Commitment<Bls12_381>>, evals: &[BlsScalarField], randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
         let bigints = convert_to_bigints(evals);
         let affines = lag_comms.iter().map(|c| c.0).collect::<Vec<_>>();
         let mut w = <Bls12_381 as Pairing>::G1::msm_bigint(&affines, &bigints);
@@ -435,6 +435,43 @@ impl Prover<'_> {
                 let point = omega.pow(&[i as u64]);
 
                 let pc_proof = self_ref.open(&self_ref.poly, point, &randomness);
+                let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
+                println!("Sigma proof {} is generated", i);
+                (cm.clone(), pc_proof, sigma_proof, i)
+            })
+            .collect();
+
+        let elapsed = now.elapsed();
+        println!("The sigma proofs are generated: {:.2?}", elapsed);
+        proofs
+    }
+
+    pub fn lagrange_generate_proof(
+        &mut self,
+        pks: &Vec<secp256k1::G1Affine>,
+        sks: &Vec<BigUint>,
+        lag_comms: &Vec<Commitment<Bls12_381>>,
+        q_evals: &Vec<Vec<BlsScalarField>>,
+    ) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)> {
+        let (cm, randomness) = self.commit_to_selector();
+        let omega = self.omega.clone();
+        let selector = self.selector.clone();
+        let now = Instant::now();
+        println!("Start generating the sigma proofs");
+
+        let sigma = Arc::new(Mutex::new(self.sigma.clone()));
+        // let randomness = Arc::new(randomness);
+        let self_ref = &*self;
+
+        let proofs: Vec<_> = (0..selector.len())
+            .into_par_iter()
+            .map(|i| {
+                let sel = selector[i];
+                let pk = pks[i];
+                let sk = sks[i].clone();
+                let point = omega.pow(&[i as u64]);
+
+                let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals[i], &randomness);
                 let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
                 println!("Sigma proof {} is generated", i);
                 (cm.clone(), pc_proof, sigma_proof, i)

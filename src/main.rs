@@ -5,6 +5,7 @@ use std::{
 use proof_of_solvency::{main_poa::{post_precompute, precompute_poa, run_poa}, 
     main_pol::run_pol, proof_of_assets::prover::Prover, utils::generate_pk_sk_pairs}
 ;
+use proof_of_solvency::main_poa::lagrange_poa;
 
 fn main() {
     println!("Operation:");
@@ -13,7 +14,8 @@ fn main() {
     println!("3. Run pi_keys for Proof-of-Assets");
     println!("4. Run pi_assets Proof-of-Assets");
     println!("5. Generate secp256k1 key pairs for Proof-of-Assets");
-    println!("6. Exit");
+    println!("6. Run pi_keys using Lagrange bases");
+    println!("7. Exit");
 
     println!("Enter your choice:");
 
@@ -90,6 +92,23 @@ fn main() {
             generate_pk_sk_pairs(num_of_keys);
         }
         6 => {
+            println!("You chose Option 6");
+            let num_of_keys: usize = match &args[1].trim().parse() {
+                Ok(num) => *num,
+                Err(_) => {
+                    println!("Unsupported number of keys!");
+                    return;
+                }
+            };
+            let num_assets: usize = match &args[2].trim().parse() {
+                Ok(num) => *num,
+                Err(_) => {
+                    return;
+                }
+            };
+            let _ = lagrange_poa(num_of_keys, num_assets);
+        }
+        7 => {
             println!("Exiting...");
             return;
         }

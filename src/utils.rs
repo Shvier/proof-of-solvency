@@ -493,13 +493,5 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
         commitments.push(commitment);
     }
 
-    let mut rng = test_rng();
-    let randomness = Randomness::<E::ScalarField, P>::rand(num_of_points, false, None, &mut rng);
-    let random_ints = convert_to_bigints(&randomness.blinding_polynomial.coeffs());
-    let random_commitment = <E::G1 as VariableBaseMSM>::msm_bigint(
-        &powers.powers_of_gamma_g,
-        random_ints.as_slice(),
-    ).into_affine();
-
     (commitments, polys)
 }
