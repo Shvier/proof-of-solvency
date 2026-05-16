@@ -468,30 +468,34 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
     num_of_points: usize,
 ) -> (Vec<Commitment<E>>, Vec<P>) {
     let domain = Radix2EvaluationDomain::<E::ScalarField>::new(num_of_points).unwrap();
-    let mut commitments = Vec::with_capacity(num_of_points);
-    let mut polys = vec![];
-
+    
     let points: Vec<_> = (0..num_of_points).map(|j| domain.element(j)).collect();
-    for i in 0..num_of_points {
-        let poly = lagrange_basis_polynomial(&points, i);
+    
+    let results: Vec<_> = (0..num_of_points)
+        .into_par_iter()
+        .map(|i| {
+            let poly = lagrange_basis_polynomial(&points, i);
 
-        if cfg!(test) {
-            for (j, point) in points.iter().enumerate() {
-                let eval = poly.evaluate(point);
-                if i == j {
-                    assert_eq!(eval, E::ScalarField::one());
-                } else {
-                    assert_eq!(eval, E::ScalarField::zero());
+            if cfg!(test) {
+                for (j, point) in points.iter().enumerate() {
+                    let eval = poly.evaluate(point);
+                    if i == j {
+                        assert_eq!(eval, E::ScalarField::one());
+                    } else {
+                        assert_eq!(eval, E::ScalarField::zero());
+                    }
                 }
             }
-        }
 
-        // Commit using KZG10
-        let (commitment, _) = KZG10::<E, _>::commit(powers, &poly, None, None).unwrap();
-        polys.push(P::from_coefficients_vec(poly.coeffs().to_vec()));
-
-        commitments.push(commitment);
-    }
-
+            let (commitment, _) = KZG10::<E, _>::commit(powers, &poly, None, None).unwrap();
+            let coeffs = poly.coeffs().to_vec();
+            
+            (commitment, coeffs)
+        })
+        .collect();
+    
+    let commitments = results.iter().map(|(c, _)| c.clone()).collect();
+    let polys = results.into_iter().map(|(_, coeffs)| P::from_coefficients_vec(coeffs)).collect();
+    
     (commitments, polys)
 }

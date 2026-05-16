@@ -9,6 +9,7 @@ use ark_test_curves::secp256k1::{self, Fq};
 use num_bigint::BigUint;
 
 use crate::{benchmark::{AffinePoint, KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::{PolyCommitProof, Prover}, sigma::SigmaProtocolProof, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
+use crate::benchmark::PoALagrange;
 use crate::types::UniPoly_381;
 use crate::utils::lagrange_commitments;
 
@@ -172,6 +173,20 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     let proofs = prover.lagrange_generate_proof(&pks, &sks, &lag_comms, &q_evals);
     let setup_prove_cost = now.elapsed();
     println!("proving time: {:.2?}", setup_prove_cost);
+
+    let setup = PoALagrange {
+        interpolate_selector: setup_cost.as_micros(),
+        proving_time: setup_prove_cost.as_micros(),
+        lagrange_time: lagrange_cost.as_micros(),
+    };
+    let dir = format!("./bench_data/proof_of_assets/{}keys", num_of_keys);
+    let precompute_dir = dir.clone() + "/lagrange";
+    let _ = fs::create_dir_all(precompute_dir.clone());
+    let json_path = precompute_dir.clone() + &format!("/{}.json", chrono::offset::Local::now()).replace(":", "-");
+    let file = File::create(json_path).unwrap();
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &setup).unwrap();
+    writer.flush().unwrap();
 }
 
 fn read_key_pairs() -> (Vec<secp256k1::G1Affine>, Vec<BigUint>) {

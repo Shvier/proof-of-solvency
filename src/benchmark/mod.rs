@@ -84,6 +84,13 @@ pub struct PoAPrecompute {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct PoALagrange {
+    pub interpolate_selector: u128,
+    pub lagrange_time: u128,
+    pub proving_time: u128,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TrustSetupParams {
     pub powers_of_g: Vec<AffinePoint>,
     pub powers_of_gamma_g: Vec<AffinePoint>,
