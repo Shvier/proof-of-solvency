@@ -325,6 +325,33 @@ impl Prover<'_> {
         }
     }
 
+    pub fn lagrange_open(&self, point: BlsScalarField, lag_comms: Vec<Commitment<Bls12_381>>, evals: &[BlsScalarField], randomness: Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
+        let bigints = convert_to_bigints(evals);
+        let affines = lag_comms.iter().map(|c| c.0).collect::<Vec<_>>();
+        let mut w = <Bls12_381 as Pairing>::G1::msm_bigint(&affines, &bigints);
+
+        let blinding_p = &randomness.blinding_polynomial;
+        let blinding_evaluation = blinding_p.evaluate(&point);
+
+        let powers = &self.powers;
+
+        let random = &randomness.blinding_polynomial;
+        let random_witness_coeffs = convert_to_bigints(&random.coeffs());
+        w += &<<Bls12_381 as Pairing>::G1 as VariableBaseMSM>::msm_bigint(
+            &powers.powers_of_gamma_g,
+            &random_witness_coeffs,
+        );
+
+        let eval = self.poly.evaluate(&point);
+        let committed_eval = self.sigma.gb.mul(eval) + self.sigma.hb.mul(&blinding_evaluation);
+
+        PolyCommitProof {
+            witness: w.into_affine(),
+            rand: blinding_evaluation,
+            committed_eval: committed_eval.into_affine(),
+        }
+    }
+
     pub fn concurrent_open<'a>(
         powers: Arc<&'a Mutex<Powers<'a, Bls12_381>>>, 
         poly: &Arc<UniPoly_381>, 
@@ -570,6 +597,7 @@ impl Prover<'_> {
     }
 }
 
+// Lagrange based approach
 impl Prover<'_> {
     pub fn prepare_selector_quotient_evals(&self) -> Vec<Vec<BlsScalarField>> {
         let domain_size = self.domain_size;

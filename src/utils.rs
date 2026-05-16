@@ -466,7 +466,7 @@ where
 pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
     powers: &Powers<E>,
     num_of_points: usize,
-) -> (Vec<Commitment<E>>, E::G1Affine, Vec<P>, Randomness<E::ScalarField, P>) {
+) -> (Vec<Commitment<E>>, Vec<P>) {
     let domain = Radix2EvaluationDomain::<E::ScalarField>::new(num_of_points).unwrap();
     let mut commitments = Vec::with_capacity(num_of_points);
     let mut polys = vec![];
@@ -501,5 +501,5 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
         random_ints.as_slice(),
     ).into_affine();
 
-    (commitments, random_commitment, polys, randomness)
+    (commitments, polys)
 }

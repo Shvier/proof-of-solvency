@@ -92,7 +92,7 @@ fn test_prover_lagrange() {
     }
     let mut prover = Prover::setup(&selector);
 
-    let (lag_comms, lag_rand_comm, lag_polys, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
+    let (lag_comms, lag_polys) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
     for i in 0..lag_polys.len() {
         for j in 0..lag_polys.len() {
             let point = prover.omega.pow(&[j as u64]);
@@ -136,12 +136,12 @@ fn test_prover_lagrange() {
     for i in 0..selector.len() {
         let point = omega.pow(&[i as u64]);
         let (witness_polynomial, random) = KZG10::<Bls12_381, UniPoly_381>::compute_witness_polynomial(&poly, point, &randomness).unwrap();
-        // let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
-        //
-        // let w = <Bls12_381 as Pairing>::G1::msm_bigint(
-        //     &powers.powers_of_g[num_leading_zeros..],
-        //     &witness_coeffs,
-        // );
+        let (num_leading_zeros, witness_coeffs) = skip_leading_zeros_and_convert_to_bigints(&witness_polynomial);
+        
+        let w = <Bls12_381 as Pairing>::G1::msm_bigint(
+            &powers.powers_of_g[num_leading_zeros..],
+            &witness_coeffs,
+        );
 
         assert_eq!(witness_polynomial.degree(), quotients[i].degree());
         for (j, e1) in lag_evals[i].iter().enumerate() {
@@ -152,7 +152,7 @@ fn test_prover_lagrange() {
         for (w_coeff, q_coeff) in witness_polynomial.coeffs().iter().zip(quotients[i].coeffs.iter()) {
             assert_eq!(w_coeff, q_coeff);
         }
-        // assert_eq!(w, quotient_comms[i]);
+        assert_eq!(w, quotient_comms[i]);
     }
 }
 
