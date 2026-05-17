@@ -655,7 +655,7 @@ impl Prover<'_> {
 
         let omega = self.omega;
 
-        let evals = (0..self.selector.len())
+        let evals = (0..self.selector.len()).into_par_iter()
             .map(| i | {
                 let omega_i = omega.pow(&[i as u64]);
                 let mut evals = vec![];

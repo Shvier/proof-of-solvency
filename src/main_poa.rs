@@ -1,8 +1,8 @@
-use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of, str::FromStr, time::Instant};
+use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of, path::Path, str::FromStr, time::Instant};
 
 use ark_bls12_381::{Bls12_381, G1Affine};
 use ark_ec::bls12::Bls12;
-use ark_poly_commit::kzg10::Commitment;
+use ark_poly_commit::kzg10::{Commitment, Powers};
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use ark_std::rand::prelude::SliceRandom;
 use ark_test_curves::secp256k1::{self, Fq};
@@ -148,6 +148,26 @@ pub fn precompute_poa(num_of_keys: usize) -> Prover<'static> {
     prover
 }
 
+fn load_or_compute_lagrange_comms(
+    cache_path: &str,
+    powers: &Powers<Bls12<ark_bls12_381::Config>>,
+    num_of_points: usize,
+) -> Vec<Commitment<Bls12<ark_bls12_381::Config>>> {
+    let (lag_comms, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(powers, num_of_points);
+    let points: Vec<AffinePoint> = lag_comms
+        .iter()
+        .map(|c| AffinePoint { x: c.0.x.to_string(), y: c.0.y.to_string() })
+        .collect();
+
+    let _ = fs::create_dir_all("./bench_data/proof_of_assets");
+    let cache_file = File::create(cache_path).unwrap();
+    let mut writer = BufWriter::new(cache_file);
+    serde_json::to_writer(&mut writer, &points).unwrap();
+    writer.flush().unwrap();
+
+    lag_comms
+}
+
 pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     let (pks, sks) = read_key_pairs();
     let rng = &mut test_rng();
@@ -165,9 +185,32 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     println!("preparing quotient evals...");
     let q_evals = prover.prepare_selector_quotient_evals();
 
+    let cache_path = "./bench_data/proof_of_assets/lag_comms.json";
+
     let now = Instant::now();
     println!("preparing lagrange bases...");
-    let (lag_comms, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
+    let lag_comms: Vec<Commitment<Bls12<ark_bls12_381::Config>>> = if Path::new(cache_path).exists() {
+        let mut cache_file = File::open(cache_path).unwrap();
+        let mut cache_buffer = String::new();
+        cache_file.read_to_string(&mut cache_buffer).unwrap();
+        println!("loading lagrange commitments from cache...");
+        match serde_json::from_str::<Vec<AffinePoint>>(&cache_buffer) {
+            Ok(points) => points
+                .into_iter()
+                .map(|point| {
+                    let x = ark_bls12_381::Fq::from_str(&point.x).unwrap();
+                    let y = ark_bls12_381::Fq::from_str(&point.y).unwrap();
+                    Commitment { 0: G1Affine::new_unchecked(x, y) }
+                })
+                .collect(),
+            Err(err) => {
+                eprintln!("failed to parse lagrange commitment cache: {}. recomputing...", err);
+                load_or_compute_lagrange_comms(cache_path, &prover.powers, prover.domain_size - 1)
+            }
+        }
+    } else {
+        load_or_compute_lagrange_comms(cache_path, &prover.powers, prover.domain_size - 1)
+    };
     let lagrange_cost = now.elapsed();
     println!("lagrange bases: {:.2?}", lagrange_cost);
 
