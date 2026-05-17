@@ -88,6 +88,7 @@ pub struct PoALagrange {
     pub interpolate_selector: u128,
     pub lagrange_time: u128,
     pub proving_time: u128,
+    pub num_assets: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

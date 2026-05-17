@@ -8,7 +8,7 @@ use ark_test_curves::secp256k1;
 use num_bigint::{BigUint, RandomBits};
 use sha2::{Digest, Sha256};
 
-use std::{fs::{self, File}, io::{BufWriter, Write}, iter::Sum, mem::size_of, ops::{Div, Mul}};
+use std::{fs::{self, File}, io::{BufWriter, Write}, iter::Sum, mem::size_of, ops::{Div, Mul}, time::Instant};
 
 use rayon::prelude::*;
 
@@ -85,22 +85,43 @@ pub fn interpolate_poly<F: FftField, D: EvaluationDomain<F>,>(
     evaluations.interpolate()
 }
 
+pub fn lagrange_basis_polynomials<F: FftField>(points: &[F]) -> Vec<DensePolynomial<F>> {
+    assert!(!points.is_empty());
+
+    let total_poly = points.iter().fold(
+        DensePolynomial::from_coefficients_vec(vec![F::one()]),
+        |poly, xj| {
+            let factor = DensePolynomial::from_coefficients_vec(vec![-*xj, F::one()]);
+            &poly * &factor
+        },
+    );
+
+    points
+        .par_iter()
+        .enumerate()
+        .map(|(i, xi)| {
+            let divisor = DensePolynomial::from_coefficients_vec(vec![-*xi, F::one()]);
+            let (quotient, remainder) = DenseOrSparsePolynomial::from(&total_poly)
+                .divide_with_q_and_r(&DenseOrSparsePolynomial::from(&divisor))
+                .expect("division by linear polynomial should succeed");
+            assert!(remainder.is_zero());
+
+            let mut denom = F::one();
+            for (j, xj) in points.iter().enumerate() {
+                if j != i {
+                    denom *= *xi - *xj;
+                }
+            }
+            let inv_denom = denom.inverse().expect("distinct evaluation points required");
+            &quotient * inv_denom
+        })
+        .collect()
+}
+
 pub fn lagrange_basis_polynomial<F: FftField>(points: &[F], i: usize) -> DensePolynomial<F> {
     assert!(i < points.len());
-    let xi = points[i];
-    let mut poly = DensePolynomial::from_coefficients_vec(vec![F::one()]);
-    let mut denom = F::one();
-    for (j, xj) in points.iter().enumerate() {
-        if j == i {
-            continue;
-        }
-        let factor = DensePolynomial::from_coefficients_vec(vec![-*xj, F::one()]);
-        poly = &poly * &factor;
-
-        denom *= xi - *xj;
-    }
-    let inv_denom = denom.inverse().expect("distinct evaluation points required");
-    &poly * inv_denom
+    let basis_polys = lagrange_basis_polynomials(points);
+    basis_polys.into_iter().nth(i).unwrap()
 }
 
 pub fn substitute_x<
@@ -470,11 +491,15 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
     let domain = Radix2EvaluationDomain::<E::ScalarField>::new(num_of_points).unwrap();
     
     let points: Vec<_> = (0..num_of_points).map(|j| domain.element(j)).collect();
+    let now = Instant::now();
+    let lag_basis = lagrange_basis_polynomials(points.as_slice());
+    let lagrange_cost = now.elapsed();
+    println!("lagrange basis polys: {:.2?}", lagrange_cost);
     
     let results: Vec<_> = (0..num_of_points)
         .into_par_iter()
         .map(|i| {
-            let poly = lagrange_basis_polynomial(&points, i);
+            let poly = &lag_basis[i];
 
             if cfg!(test) {
                 for (j, point) in points.iter().enumerate() {
@@ -487,7 +512,7 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
                 }
             }
 
-            let (commitment, _) = KZG10::<E, _>::commit(powers, &poly, None, None).unwrap();
+            let (commitment, _) = KZG10::<E, _>::commit(powers, poly, None, None).unwrap();
             let coeffs = poly.coeffs().to_vec();
             
             (commitment, coeffs)

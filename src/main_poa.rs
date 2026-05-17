@@ -162,9 +162,11 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     let mut prover = Prover::setup(&selector);
     let setup_cost = now.elapsed();
     println!("interpolate selector: {:.2?}", setup_cost);
+    println!("preparing quotient evals...");
     let q_evals = prover.prepare_selector_quotient_evals();
 
     let now = Instant::now();
+    println!("preparing lagrange bases...");
     let (lag_comms, _) = lagrange_commitments::<Bls12<ark_bls12_381::Config>, UniPoly_381>(&prover.powers, prover.domain_size - 1);
     let lagrange_cost = now.elapsed();
     println!("lagrange bases: {:.2?}", lagrange_cost);
@@ -178,6 +180,7 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
         interpolate_selector: setup_cost.as_micros(),
         proving_time: setup_prove_cost.as_micros(),
         lagrange_time: lagrange_cost.as_micros(),
+        num_assets: num_assets,
     };
     let dir = format!("./bench_data/proof_of_assets/{}keys", num_of_keys);
     let precompute_dir = dir.clone() + "/lagrange";

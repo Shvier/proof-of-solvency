@@ -473,7 +473,7 @@ impl Prover<'_> {
 
                 let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals[i], &randomness);
                 let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
-                println!("Sigma proof {} is generated", i);
+                // println!("Sigma proof {} is generated", i);
                 (cm.clone(), pc_proof, sigma_proof, i)
             })
             .collect();
