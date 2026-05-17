@@ -451,7 +451,6 @@ impl Prover<'_> {
         pks: &Vec<secp256k1::G1Affine>,
         sks: &Vec<BigUint>,
         lag_comms: &Vec<Commitment<Bls12_381>>,
-        q_evals: &Vec<Vec<BlsScalarField>>,
     ) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)> {
         let (cm, randomness) = self.commit_to_selector();
         let omega = self.omega.clone();
@@ -463,6 +462,21 @@ impl Prover<'_> {
         // let randomness = Arc::new(randomness);
         let self_ref = &*self;
 
+        println!("Preparing the derivative of the selector polynomial and its evaluations...");
+        let mut derivative_s = vec![];
+        for (i, coeff) in self.poly.coeffs.iter().skip(1).enumerate() {
+            let multiplier = BlsScalarField::from((i + 1) as u64);
+            let new_coeff = coeff.mul(&multiplier);
+            derivative_s.push(new_coeff);
+        }
+        let d_s = DensePolynomial::from_coefficients_vec(derivative_s.clone());
+        let q_domain_size = self.domain_size - 1;
+        let s_evals = self.poly.coeffs.iter().cloned().collect::<Vec<_>>();
+        let domain = Radix2EvaluationDomain::<BlsScalarField>::new(self.domain_size).unwrap();
+        let s_evals = domain.fft(&s_evals);
+
+        println!("Start generating the sigma proofs with lagrange opening...");
+
         let proofs: Vec<_> = (0..selector.len())
             .into_par_iter()
             .map(|i| {
@@ -471,7 +485,20 @@ impl Prover<'_> {
                 let sk = sks[i].clone();
                 let point = omega.pow(&[i as u64]);
 
-                let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals[i], &randomness);
+                let mut q_evals = vec![];
+                for j in 0..q_domain_size {
+                    if i == j {
+                        let term = d_s.evaluate(&point);
+                        q_evals.push(term);
+                        continue;
+                    }
+                    let omega_j = omega.pow(&[j as u64]);
+                    let numerator = s_evals[j] - s_evals[i];
+                    let term = numerator * (omega_j - point).inverse().unwrap();
+                    q_evals.push(term);
+                }
+
+                let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals, &randomness);
                 let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
                 // println!("Sigma proof {} is generated", i);
                 (cm.clone(), pc_proof, sigma_proof, i)

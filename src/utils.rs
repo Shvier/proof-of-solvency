@@ -124,6 +124,26 @@ pub fn lagrange_basis_polynomial<F: FftField>(points: &[F], i: usize) -> DensePo
     basis_polys.into_iter().nth(i).unwrap()
 }
 
+pub fn lagrange_basis_i<F: FftField>(total_poly: &DensePolynomial<F>, points: &[F], i: usize) -> DensePolynomial<F> {
+    assert!(!points.is_empty());
+
+    let xi = points[i];
+    let divisor = DensePolynomial::from_coefficients_vec(vec![-xi, F::one()]);
+    let (quotient, remainder) = DenseOrSparsePolynomial::from(total_poly)
+        .divide_with_q_and_r(&DenseOrSparsePolynomial::from(&divisor))
+        .expect("division by linear polynomial should succeed");
+    assert!(remainder.is_zero());
+
+    let mut denom = F::one();
+    for (j, xj) in points.iter().enumerate() {
+        if j != i {
+            denom *= xi - *xj;
+        }
+    }
+    let inv_denom = denom.inverse().expect("distinct evaluation points required");
+    &quotient * inv_denom
+}
+
 pub fn substitute_x<
 F: PrimeField,
 D: EvaluationDomain<F>,
@@ -491,15 +511,23 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
     let domain = Radix2EvaluationDomain::<E::ScalarField>::new(num_of_points).unwrap();
     
     let points: Vec<_> = (0..num_of_points).map(|j| domain.element(j)).collect();
-    let now = Instant::now();
-    let lag_basis = lagrange_basis_polynomials(points.as_slice());
-    let lagrange_cost = now.elapsed();
-    println!("lagrange basis polys: {:.2?}", lagrange_cost);
+    // let now = Instant::now();
+    // let lag_basis = lagrange_basis_polynomials(points.as_slice());
+    // let lagrange_cost = now.elapsed();
+    // println!("lagrange basis polys: {:.2?}", lagrange_cost);
+
+    let total_poly = points.iter().fold(
+        DensePolynomial::from_coefficients_vec(vec![E::ScalarField::one()]),
+        |poly, xj| {
+            let factor = DensePolynomial::from_coefficients_vec(vec![-*xj, E::ScalarField::one()]);
+            &poly * &factor
+        },
+    );
     
     let results: Vec<_> = (0..num_of_points)
         .into_par_iter()
         .map(|i| {
-            let poly = &lag_basis[i];
+            let poly = lagrange_basis_i(&total_poly, points.as_slice(), i);
 
             if cfg!(test) {
                 for (j, point) in points.iter().enumerate() {
@@ -512,9 +540,9 @@ pub fn lagrange_commitments<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>(
                 }
             }
 
-            let (commitment, _) = KZG10::<E, _>::commit(powers, poly, None, None).unwrap();
+            let (commitment, _) = KZG10::<E, _>::commit(powers, &poly, None, None).unwrap();
             let coeffs = poly.coeffs().to_vec();
-            
+            drop(poly);
             (commitment, coeffs)
         })
         .collect();
