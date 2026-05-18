@@ -184,7 +184,7 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     let setup_cost = now.elapsed();
     println!("interpolate selector: {:.2?}", setup_cost);
 
-    let cache_path = "./bench_data/proof_of_assets/lag_comms.json";
+    let cache_path = "./bench_data/proof_of_assets/cache/lag_comms.json";
 
     let now = Instant::now();
     println!("preparing lagrange bases...");
