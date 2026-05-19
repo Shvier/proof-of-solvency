@@ -325,7 +325,7 @@ impl Prover<'_> {
         }
     }
 
-    pub fn lagrange_open(&self, point: BlsScalarField, lag_comms: &Vec<Commitment<Bls12_381>>, evals: &[BlsScalarField], randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
+    pub fn lagrange_open(&self, point: BlsScalarField, lag_comms: &Vec<Commitment<Bls12_381>>, evals: &[BlsScalarField], rand_comms: &Commitment<Bls12_381>, randomness: &Randomness<BlsScalarField, UniPoly_381>) -> PolyCommitProof {
         let bigints = convert_to_bigints(evals);
         let affines = lag_comms.iter().map(|c| c.0).collect::<Vec<_>>();
         let mut w = <Bls12_381 as Pairing>::G1::msm_bigint(&affines, &bigints);
@@ -333,14 +333,7 @@ impl Prover<'_> {
         let blinding_p = &randomness.blinding_polynomial;
         let blinding_evaluation = blinding_p.evaluate(&point);
 
-        let powers = &self.powers;
-
-        let random = &randomness.blinding_polynomial;
-        let random_witness_coeffs = convert_to_bigints(&random.coeffs());
-        w += &<<Bls12_381 as Pairing>::G1 as VariableBaseMSM>::msm_bigint(
-            &powers.powers_of_gamma_g,
-            &random_witness_coeffs,
-        );
+        w += rand_comms.0;
 
         let eval = self.poly.evaluate(&point);
         let committed_eval = self.sigma.gb.mul(eval) + self.sigma.hb.mul(&blinding_evaluation);
@@ -451,6 +444,7 @@ impl Prover<'_> {
         pks: &Vec<secp256k1::G1Affine>,
         sks: &Vec<BigUint>,
         lag_comms: &Vec<Commitment<Bls12_381>>,
+        inverses: Vec<Vec<BlsScalarField>>
     ) -> Vec<(Commitment<Bls12_381>, PolyCommitProof, SigmaProtocolProof, usize)> {
         let (cm, randomness) = self.commit_to_selector();
         let omega = self.omega.clone();
@@ -463,6 +457,7 @@ impl Prover<'_> {
         let self_ref = &*self;
 
         println!("Preparing the derivative of the selector polynomial and its evaluations...");
+        let now = Instant::now();
         let mut derivative_s = vec![];
         for (i, coeff) in self.poly.coeffs.iter().skip(1).enumerate() {
             let multiplier = BlsScalarField::from((i + 1) as u64);
@@ -474,8 +469,24 @@ impl Prover<'_> {
         let s_evals = self.poly.coeffs.iter().cloned().collect::<Vec<_>>();
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(self.domain_size).unwrap();
         let s_evals = domain.fft(&s_evals);
+        println!("The derivative of the selector polynomial and its evaluations are prepared: {:.2?}", now.elapsed());
+
+        let now = Instant::now();
+        println!("preparing lagrange blinding polynomial...");
+        let random = &randomness.blinding_polynomial;
+        let random_witness_coeffs = convert_to_bigints(&random.coeffs());
+        let rand_comms_proj = <<Bls12_381 as Pairing>::G1 as VariableBaseMSM>::msm_bigint(
+            &self.powers.powers_of_gamma_g,
+            &random_witness_coeffs,
+        );
+        let rand_comms = Commitment(rand_comms_proj.into_affine());
+        println!("lagrange blinding polynomial prepared: {:.2?}", now.elapsed());
 
         println!("Start generating the sigma proofs with lagrange opening...");
+
+        let mut q_evals_cost = 0;
+        let mut pc_proof_cost = 0;
+        let mut sigma_proof_cost = 0;
 
         let proofs: Vec<_> = (0..selector.len())
             .into_par_iter()
@@ -485,6 +496,7 @@ impl Prover<'_> {
                 let sk = sks[i].clone();
                 let point = omega.pow(&[i as u64]);
 
+                let now = Instant::now();
                 let mut q_evals = vec![];
                 for j in 0..q_domain_size {
                     if i == j {
@@ -492,13 +504,13 @@ impl Prover<'_> {
                         q_evals.push(term);
                         continue;
                     }
-                    let omega_j = omega.pow(&[j as u64]);
                     let numerator = s_evals[j] - s_evals[i];
-                    let term = numerator * (omega_j - point).inverse().unwrap();
+                    let term = numerator * inverses[i][j];
                     q_evals.push(term);
                 }
+                let elapsed = now.elapsed();
 
-                let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals, &randomness);
+                let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals, &rand_comms, &randomness);
                 drop(q_evals);
                 let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
                 // println!("Sigma proof {} is generated", i);
@@ -664,7 +676,7 @@ impl Prover<'_> {
 
 // Lagrange based approach
 impl Prover<'_> {
-    pub fn prepare_selector_quotient_evals(&self) -> Vec<Vec<BlsScalarField>> {
+    pub fn prepare_selector_quotient_evals(&self, inverses: Vec<Vec<BlsScalarField>>) -> Vec<Vec<BlsScalarField>> {
         let domain_size = self.domain_size;
         let domain = Radix2EvaluationDomain::<BlsScalarField>::new(domain_size).unwrap();
         let elements = domain.elements().collect::<Vec<BlsScalarField>>();
@@ -693,9 +705,8 @@ impl Prover<'_> {
                         evals.push(term);
                         continue;
                     }
-                    let omega_j = omega.pow(&[j as u64]);
                     let numerator = s_evals[j] - s_evals[i];
-                    let term = numerator * (omega_j - omega_i).inverse().unwrap();
+                    let term = numerator * inverses[i][j];
                     evals.push(term);
                 }
                 evals

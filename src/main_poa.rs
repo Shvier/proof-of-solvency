@@ -3,10 +3,12 @@ use std::{fs::{self, File}, io::{BufWriter, Read, Write}, mem::size_of, path::Pa
 use ark_bls12_381::{Bls12_381, G1Affine};
 use ark_ec::bls12::Bls12;
 use ark_poly_commit::kzg10::{Commitment, Powers};
-use ark_std::{rand::Rng, test_rng, UniformRand};
+use ark_std::{rand::Rng, test_rng, UniformRand, Zero};
 use ark_std::rand::prelude::SliceRandom;
 use ark_test_curves::secp256k1::{self, Fq};
+use ark_ff::Field;
 use num_bigint::BigUint;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{benchmark::{AffinePoint, KeyPair, PoAPrecompute, PoAReport}, proof_of_assets::{prover::{PolyCommitProof, Prover}, sigma::SigmaProtocolProof, verifier::Verifier}, types::BlsScalarField, utils::read_balances};
 use crate::benchmark::PoALagrange;
@@ -219,11 +221,32 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     let lagrange_cost = now.elapsed();
     println!("lagrange bases: {:.2?}", lagrange_cost);
 
-    // println!("preparing quotient evals...");
+    println!("preparing quotient inverses...");
     // let q_evals = prover.prepare_selector_quotient_evals();
+    let now = Instant::now();
+    let q_domain_size = prover.domain_size;
+    let omega = prover.omega;
+    let inverses = (0..q_domain_size).into_par_iter()
+        .map(| i | {
+            let omega_i = omega.pow(&[i as u64]);
+            let mut invs = vec![];
+            for j in 0..q_domain_size {
+                if i == j {
+                    invs.push(BlsScalarField::zero());
+                    continue;
+                }
+                let omega_j = omega.pow(&[j as u64]);
+                let inv = (omega_j - omega_i).inverse().unwrap();
+                invs.push(inv);
+            }
+            invs
+        })
+        .collect::<Vec<Vec<BlsScalarField>>>();
+    let prep_inverses_cost = now.elapsed();
+    println!("preparing inverses: {:.2?}", prep_inverses_cost);
 
     let now = Instant::now();
-    let proofs = prover.lagrange_generate_proof(&pks, &sks, &lag_comms);
+    let proofs = prover.lagrange_generate_proof(&pks, &sks, &lag_comms, inverses);
     let setup_prove_cost = now.elapsed();
     println!("proving time: {:.2?}", setup_prove_cost);
 
