@@ -222,26 +222,91 @@ pub fn lagrange_poa(num_of_keys: usize, num_assets: usize) {
     println!("lagrange bases: {:.2?}", lagrange_cost);
 
     println!("preparing quotient inverses...");
-    // let q_evals = prover.prepare_selector_quotient_evals();
+    let cache_path = format!("./bench_data/proof_of_assets/cache/inverses_{}.json", num_of_keys);
     let now = Instant::now();
     let q_domain_size = prover.domain_size;
     let omega = prover.omega;
-    let inverses = (0..q_domain_size).into_par_iter()
-        .map(| i | {
-            let omega_i = omega.pow(&[i as u64]);
-            let mut invs = vec![];
-            for j in 0..q_domain_size {
-                if i == j {
-                    invs.push(BlsScalarField::zero());
-                    continue;
+    let inverses: Vec<Vec<BlsScalarField>> = {
+        if Path::new(cache_path).exists() {
+            let result = {
+                let mut cache_file = File::open(cache_path).unwrap();
+                let mut cache_buffer = String::new();
+                cache_file.read_to_string(&mut cache_buffer).unwrap();
+                println!("loading inverses from cache...");
+                serde_json::from_str::<Vec<Vec<String>>>(&cache_buffer)
+            };
+            
+            match result {
+                Ok(inv_strs) => inv_strs
+                    .into_iter()
+                    .map(|row| {
+                        row.into_iter()
+                            .map(|s| BlsScalarField::from_str(&s).unwrap())
+                            .collect()
+                    })
+                    .collect(),
+                Err(err) => {
+                    eprintln!("failed to parse inverses cache: {}. recomputing...", err);
+                    let invs = (0..q_domain_size).into_par_iter()
+                        .map(| i | {
+                            let omega_i = omega.pow(&[i as u64]);
+                            let mut invs = vec![];
+                            for j in 0..q_domain_size {
+                                if i == j {
+                                    invs.push(BlsScalarField::zero());
+                                    continue;
+                                }
+                                let omega_j = omega.pow(&[j as u64]);
+                                let inv = (omega_j - omega_i).inverse().unwrap();
+                                invs.push(inv);
+                            }
+                            invs
+                        })
+                        .collect::<Vec<Vec<BlsScalarField>>>();
+                    
+                    // Save to cache
+                    let inv_strs: Vec<Vec<String>> = invs.iter()
+                        .map(|row| row.iter().map(|v| v.to_string()).collect())
+                        .collect();
+                    let cache_file = File::create(cache_path).unwrap();
+                    let mut writer = BufWriter::new(cache_file);
+                    serde_json::to_writer(&mut writer, &inv_strs).unwrap();
+                    writer.flush().unwrap();
+                    
+                    invs
                 }
-                let omega_j = omega.pow(&[j as u64]);
-                let inv = (omega_j - omega_i).inverse().unwrap();
-                invs.push(inv);
             }
+        } else {
+            let invs = (0..q_domain_size).into_par_iter()
+                .map(| i | {
+                    let omega_i = omega.pow(&[i as u64]);
+                    let mut invs = vec![];
+                    for j in 0..q_domain_size {
+                        if i == j {
+                            invs.push(BlsScalarField::zero());
+                            continue;
+                        }
+                        let omega_j = omega.pow(&[j as u64]);
+                        let inv = (omega_j - omega_i).inverse().unwrap();
+                        invs.push(inv);
+                    }
+                    invs
+                })
+                .collect::<Vec<Vec<BlsScalarField>>>();
+            
+            // Save to cache
+            let _ = fs::create_dir_all("./bench_data/proof_of_assets/cache");
+            let inv_strs: Vec<Vec<String>> = invs.iter()
+                .map(|row| row.iter().map(|v| v.to_string()).collect())
+                .collect();
+            let cache_file = File::create(cache_path).unwrap();
+            let mut writer = BufWriter::new(cache_file);
+            serde_json::to_writer(&mut writer, &inv_strs).unwrap();
+            writer.flush().unwrap();
+            
             invs
-        })
-        .collect::<Vec<Vec<BlsScalarField>>>();
+        }
+    };
     let prep_inverses_cost = now.elapsed();
     println!("preparing inverses: {:.2?}", prep_inverses_cost);
 

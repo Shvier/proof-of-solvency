@@ -8,7 +8,7 @@ use ark_test_curves::secp256k1;
 use num_bigint::BigUint;
 
 use rayon::prelude::*;
-use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, mem::size_of, ops::Mul, sync::{Arc, Mutex}, time::Instant};
+use std::{borrow::Borrow, collections::BTreeMap, fs::File, io::Read, mem::size_of, ops::Mul, sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}}, time::Instant};
 
 use crate::{benchmark::{AffinePoint, AffineQuadExt, AffineQuadExtPoint, PoAProverJSON, SelectorPoly, TrustSetupParams}, types::{BlsScalarField, UniPoly_381}, utils::{average, batch_open, calculate_hash, convert_to_bigints, linear_combine_polys, skip_leading_zeros_and_convert_to_bigints, BatchCheckProof, HashBox}};
 
@@ -484,9 +484,9 @@ impl Prover<'_> {
 
         println!("Start generating the sigma proofs with lagrange opening...");
 
-        let mut q_evals_cost = 0;
-        let mut pc_proof_cost = 0;
-        let mut sigma_proof_cost = 0;
+        let q_evals_cost = AtomicU64::new(0);
+        let pc_proof_cost = AtomicU64::new(0);
+        let sigma_proof_cost = AtomicU64::new(0);
 
         let proofs: Vec<_> = (0..selector.len())
             .into_par_iter()
@@ -508,15 +508,26 @@ impl Prover<'_> {
                     let term = numerator * inverses[i][j];
                     q_evals.push(term);
                 }
-                let elapsed = now.elapsed();
+                let elapsed = now.elapsed().as_micros() as u64;
+                q_evals_cost.fetch_add(elapsed, Ordering::Relaxed);
 
+                let now = Instant::now();
                 let pc_proof = self_ref.lagrange_open(point, lag_comms, &q_evals, &rand_comms, &randomness);
                 drop(q_evals);
+                let elapsed = now.elapsed().as_micros() as u64;
+                pc_proof_cost.fetch_add(elapsed, Ordering::Relaxed);
+                let now = Instant::now();
                 let sigma_proof = sigma.lock().unwrap().generate_proof(pk, pc_proof.rand.into_bigint().into(), sel, sk);
+                let elapsed = now.elapsed().as_micros() as u64;
+                sigma_proof_cost.fetch_add(elapsed, Ordering::Relaxed);
                 // println!("Sigma proof {} is generated", i);
                 (cm.clone(), pc_proof, sigma_proof, i)
             })
             .collect();
+
+        println!("q_evals time: {}ms", q_evals_cost.load(Ordering::Relaxed) as f64 / 1000.0);
+        println!("pc_proof time: {}ms", pc_proof_cost.load(Ordering::Relaxed) as f64 / 1000.0);
+        println!("sigma_proof time: {}ms", sigma_proof_cost.load(Ordering::Relaxed) as f64 / 1000.0);
 
         let elapsed = now.elapsed();
         println!("The sigma proofs are generated: {:.2?}", elapsed);
